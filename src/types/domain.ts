@@ -97,7 +97,6 @@ export interface Participant {
   email: string | null;
   signature: string | null;
   signedAt: string | null;
-  signToken: string;
 }
 
 export interface Meeting {

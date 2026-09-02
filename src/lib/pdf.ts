@@ -106,7 +106,7 @@ function pdfChecklistWithLog(doc: jsPDF, y: number, sec: Section) {
 function pdfSignatureBlock(doc: jsPDF, y: number, participants: Meeting['participants']) {
   y = pdfSectionTitle(doc, y, 'Firmas de los participantes');
   let list = Array.isArray(participants) ? participants.filter(Boolean) : [];
-  if (!list.length) list = [{ id: '1', label: 'Participante 1', email: null, signature: null, signedAt: null, signToken: '' }];
+  if (!list.length) list = [{ id: '1', label: 'Participante 1', email: null, signature: null, signedAt: null }];
   const gap = 24, colW = (CONTENT_W - gap) / 2, rowH = 88;
   let col = 0;
   list.forEach((p) => {

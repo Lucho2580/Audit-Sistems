@@ -163,10 +163,16 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
     onChanged();
   }
 
-  function copySignLink(participantSignToken: string) {
-    const link = `${window.location.origin}/sign/${participantSignToken}`;
+  async function copySignLink(participantId: string) {
+    let link: string;
+    try {
+      link = await MeetingsApi.getSignLink(participantId);
+    } catch (err) {
+      alert(`No se pudo obtener el enlace de firma: ${(err as Error).message}`);
+      return;
+    }
     navigator.clipboard?.writeText(link).then(
-      () => { setCopiedFor(participantSignToken); setTimeout(() => setCopiedFor(null), 1400); },
+      () => { setCopiedFor(participantId); setTimeout(() => setCopiedFor(null), 1400); },
       () => prompt('Copia este enlace de firma:', link),
     );
   }
@@ -377,13 +383,15 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
                     mt.participants.map((p) => (
                       <span className={`participant-chip ${p.signature ? 'signed' : ''}`} key={p.id}>
                         {p.signature ? '✓ ' : ''}{p.label}
-                        <button
-                          className="link-btn"
-                          title="Copiar enlace de firma para este participante"
-                          onClick={() => copySignLink(p.signToken)}
-                        >
-                          {copiedFor === p.signToken ? '✓' : '🔗'}
-                        </button>
+                        {canEdit && (
+                          <button
+                            className="link-btn"
+                            title="Copiar enlace de firma para este participante"
+                            onClick={() => copySignLink(p.id)}
+                          >
+                            {copiedFor === p.id ? '✓' : '🔗'}
+                          </button>
+                        )}
                         {canEdit && (
                           <button title="Quitar participante" onClick={() => removeParticipant(p.id)}>×</button>
                         )}

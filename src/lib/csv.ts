@@ -14,7 +14,12 @@ const CSV_HEADERS = [
 ];
 
 function escapeCsvCell(value: unknown): string {
-  const str = value === null || value === undefined ? '' : String(value);
+  let str = value === null || value === undefined ? '' : String(value);
+  // Excel/Sheets interpretan celdas que empiezan con = + - @ como fórmulas
+  // (CSV/formula injection); anteponer una comilla simple las neutraliza como texto.
+  if (/^[=+\-@]/.test(str)) {
+    str = `'${str}`;
+  }
   if (/[",\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }

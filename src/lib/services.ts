@@ -18,10 +18,14 @@ const PROJECT_SELECT = `
   )
 `;
 
+// OJO: sign_token es la credencial de firma pública de cada participante (quien la
+// tenga puede firmar en su nombre vía /sign/:token). Por eso NO se incluye aquí, en la
+// consulta general que ve cualquiera con acceso a la reunión — se obtiene aparte, uno
+// por uno y solo bajo demanda, con MeetingsApi.getSignLink().
 const MEETING_SELECT = `
   id, date, time, title, state, topics, agreements, risks, nextSteps:next_steps, projectId:project_id,
   teamsJoinUrl:teams_join_url,
-  participants ( id, label, email, signature, signedAt:signed_at, signToken:sign_token )
+  participants ( id, label, email, signature, signedAt:signed_at )
 `;
 
 function normalizeProject(project: Project): Project {
@@ -245,6 +249,16 @@ export const MeetingsApi = {
     const rows = throwIfError<{ label: string; already_signed: boolean }[]>(res as any);
     const row = rows?.[0];
     return row ? { label: row.label, alreadySigned: row.already_signed } : null;
+  },
+
+  // Trae el sign_token de un solo participante bajo demanda (para el botón "copiar
+  // enlace"), en vez de traer los de todos los participantes en cada carga de la
+  // reunión. La función RPC debe validar en el servidor que quien llama tiene permiso
+  // (admin/desarrollador) sobre el proyecto de esa reunión antes de devolver el token.
+  async getSignLink(participantId: string): Promise<string> {
+    const res = await supabase.rpc('get_sign_link', { p_participant_id: participantId });
+    const token = throwIfError<string>(res as any);
+    return `${window.location.origin}/sign/${token}`;
   },
 
   async addParticipant(meetingId: string, label: string, email: string) {
