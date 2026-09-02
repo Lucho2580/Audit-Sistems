@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { MeetingsApi, type DirectoryUser } from '../lib/services';
+import { MeetingsApi, DailyNotesApi, type DirectoryUser } from '../lib/services';
 import { generateMeetingMinutesPdf } from '../lib/pdf';
-import { MEETING_STATE_META, type Meeting, type MeetingState, type Project } from '../types/domain';
+import { MEETING_STATE_META, type DailyNote, type Meeting, type MeetingState, type Project } from '../types/domain';
 import DirectorySearch from './DirectorySearch';
 
 const MONTH_LABELS = [
@@ -18,11 +18,12 @@ const todayISO = () => {
 interface Props {
   project: Project;
   meetings: Meeting[];
+  dailyNotes: DailyNote[];
   canEdit: boolean;
   onChanged: () => void;
 }
 
-export default function MeetingsCalendar({ project, meetings, canEdit, onChanged }: Props) {
+export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdit, onChanged }: Props) {
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -37,6 +38,9 @@ export default function MeetingsCalendar({ project, meetings, canEdit, onChanged
   const [copiedFor, setCopiedFor] = useState<string | null>(null);
   const [notifying, setNotifying] = useState<string | null>(null);
   const [creatingTeamsFor, setCreatingTeamsFor] = useState<string | null>(null);
+  const [showNoteForm, setShowNoteForm] = useState(false);
+  const [noteForm, setNoteForm] = useState({ date: todayISO(), text: '' });
+  const [savingNote, setSavingNote] = useState(false);
 
   const y = calMonth.getFullYear();
   const m = calMonth.getMonth();
@@ -57,6 +61,10 @@ export default function MeetingsCalendar({ project, meetings, canEdit, onChanged
   const visibleMeetings = (selectedDay ? meetings.filter((mt) => mt.date === selectedDay) : meetings)
     .slice()
     .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+
+  const visibleNotes = (selectedDay ? dailyNotes.filter((n) => n.date === selectedDay) : dailyNotes)
+    .slice()
+    .sort((a, b) => (b.date + b.createdAt).localeCompare(a.date + a.createdAt));
 
   function meetingDoc(mt: Meeting) {
     return { ...mt, ...docDrafts[mt.id] };
@@ -133,6 +141,28 @@ export default function MeetingsCalendar({ project, meetings, canEdit, onChanged
     onChanged();
   }
 
+  async function addDailyNote() {
+    if (!noteForm.date) { alert('Selecciona una fecha para la nota de seguimiento.'); return; }
+    if (!noteForm.text.trim()) { alert('Escribe una nota de seguimiento antes de guardarla.'); return; }
+    setSavingNote(true);
+    try {
+      await DailyNotesApi.create(project.id, noteForm.date, noteForm.text.trim());
+      setShowNoteForm(false);
+      setNoteForm({ date: todayISO(), text: '' });
+      onChanged();
+    } catch (err) {
+      alert(`No se pudo guardar la nota de seguimiento: ${(err as Error).message}`);
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  async function deleteDailyNote(note: DailyNote) {
+    if (!confirm('¿Eliminar esta nota de seguimiento?')) return;
+    await DailyNotesApi.remove(note.id);
+    onChanged();
+  }
+
   function copySignLink(participantSignToken: string) {
     const link = `${window.location.origin}/sign/${participantSignToken}`;
     navigator.clipboard?.writeText(link).then(
@@ -146,7 +176,7 @@ export default function MeetingsCalendar({ project, meetings, canEdit, onChanged
       <div className="section-head">
         <div className="title-block">
           <span className="code-tag">CAL</span>
-          <h2>Calendario de reuniones</h2>
+          <h2>Calendario de reuniones y seguimiento</h2>
         </div>
       </div>
       <div className="cal-header">
@@ -160,6 +190,7 @@ export default function MeetingsCalendar({ project, meetings, canEdit, onChanged
           <span><span className="dot" style={{ background: 'var(--gold)' }} />Reprogramada</span>
           <span><span className="dot" style={{ background: 'var(--green)' }} />Realizada</span>
           <span><span className="dot" style={{ background: 'var(--rust)' }} />No realizada</span>
+          <span><span className="dot dot-square" style={{ background: 'var(--ink)' }} />Seguimiento diario</span>
         </div>
       </div>
       <div className="cal-grid">
@@ -169,6 +200,7 @@ export default function MeetingsCalendar({ project, meetings, canEdit, onChanged
         {cells.map((c, idx) => {
           if (c.date === null) return <div className="cal-day empty" key={idx} />;
           const dayMeetings = meetings.filter((mt) => mt.date === c.date);
+          const dayNotes = dailyNotes.filter((n) => n.date === c.date);
           return (
             <div
               key={c.date}
@@ -180,6 +212,7 @@ export default function MeetingsCalendar({ project, meetings, canEdit, onChanged
                 {dayMeetings.map((mt) => (
                   <span className={`cal-dot ${mt.state}`} key={mt.id} />
                 ))}
+                {dayNotes.length > 0 && <span className="cal-dot dot-square note-dot" title="Seguimiento diario" />}
               </div>
             </div>
           );
@@ -190,18 +223,25 @@ export default function MeetingsCalendar({ project, meetings, canEdit, onChanged
         <span className="filter-note">
           {selectedDay ? (
             <>
-              Mostrando reuniones del {selectedDay} ·{' '}
-              <button onClick={() => setSelectedDay(null)}>ver todas</button>
+              Mostrando el {selectedDay} ·{' '}
+              <button onClick={() => setSelectedDay(null)}>ver todo</button>
             </>
           ) : (
-            'Mostrando todas las reuniones del proyecto'
+            'Mostrando todo el proyecto'
           )}
         </span>
-        {canEdit && (
-          <button className="btn small" onClick={() => setShowForm((s) => !s)}>
-            {showForm ? 'Cancelar' : '+ Agendar reunión'}
-          </button>
-        )}
+        <span className="toolbar-actions">
+          {canEdit && (
+            <button className="btn small" onClick={() => setShowForm((s) => !s)}>
+              {showForm ? 'Cancelar' : '+ Agendar reunión'}
+            </button>
+          )}
+          {canEdit && (
+            <button className="btn small ghost" onClick={() => setShowNoteForm((s) => !s)}>
+              {showNoteForm ? 'Cancelar' : '+ Nota de seguimiento'}
+            </button>
+          )}
+        </span>
       </div>
 
       {showForm && (
@@ -259,6 +299,30 @@ export default function MeetingsCalendar({ project, meetings, canEdit, onChanged
             </div>
           </div>
           <button className="btn small" onClick={createMeeting}>Agendar</button>
+        </div>
+      )}
+
+      {showNoteForm && (
+        <div className="meeting-form">
+          <div className="field">
+            <label>Fecha</label>
+            <input
+              type="date"
+              value={noteForm.date}
+              onChange={(e) => setNoteForm((f) => ({ ...f, date: e.target.value }))}
+            />
+          </div>
+          <div className="field full">
+            <label>Nota de seguimiento</label>
+            <textarea
+              value={noteForm.text}
+              onChange={(e) => setNoteForm((f) => ({ ...f, text: e.target.value }))}
+              placeholder="Ej. Se resolvió el bloqueo de ambiente de pruebas con el proveedor"
+            />
+          </div>
+          <button className="btn small" onClick={addDailyNote} disabled={savingNote}>
+            {savingNote ? 'Guardando…' : 'Agregar nota'}
+          </button>
         </div>
       )}
 
@@ -379,6 +443,34 @@ export default function MeetingsCalendar({ project, meetings, canEdit, onChanged
               </div>
             );
           })
+        )}
+      </div>
+
+      <div className="daily-notes-section">
+        <div className="daily-notes-title">Seguimiento diario</div>
+        {visibleNotes.length === 0 ? (
+          <div className="empty-state">Sin notas de seguimiento todavía.</div>
+        ) : (
+          <div className="daily-notes-list">
+            {visibleNotes.map((n) => (
+              <div className="log-entry" key={n.id}>
+                <div className="log-entry-text">
+                  <span className="log-date">
+                    {new Date(n.date + 'T00:00:00').toLocaleDateString('es-ES', {
+                      day: '2-digit', month: '2-digit', year: 'numeric',
+                    })}
+                    {n.authorEmail ? ` · ${n.authorEmail}` : ''}
+                  </span>
+                  <span className="log-text">{n.note}</span>
+                </div>
+                {canEdit && (
+                  <button className="del-btn tiny" title="Eliminar" onClick={() => deleteDailyNote(n)}>
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -18,6 +19,21 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </span>
         )}
       </div>
+      {session && (
+        <nav className="main-nav">
+          <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
+            Proyectos
+          </NavLink>
+          <NavLink to="/timeline" className={({ isActive }) => (isActive ? 'active' : '')}>
+            Línea de tiempo
+          </NavLink>
+          {profile?.role === 'admin' && (
+            <NavLink to="/tools" className={({ isActive }) => (isActive ? 'active' : '')}>
+              Herramientas
+            </NavLink>
+          )}
+        </nav>
+      )}
       {children}
       <footer>
         Los checkpoints completados solo se reabren con una observación. Los seguimientos y las

@@ -2,10 +2,13 @@ import { supabase } from './supabase';
 import { computeProjectStats } from '../types/domain';
 import type {
   Project, Meeting, AuditLogEntry, ItemResponsible, ProjectStatus, MeetingState,
+  Provider, ProjectPhase, DailyNote,
 } from '../types/domain';
 
 const PROJECT_SELECT = `
   id, code, name, proveedor, status, createdAt:created_at,
+  deliveryDate:delivery_date, finalDeliveryDate:final_delivery_date,
+  delayDays:delay_days, finalObservation:final_observation,
   sections (
     id, key, code, title, notes, orderIndex:order_index,
     items:checklist_items (
@@ -93,6 +96,25 @@ export const ProjectsApi = {
 
   async deleteProject(id: string) {
     const res = await supabase.from('projects').delete().eq('id', id);
+    throwIfError(res as any);
+  },
+
+  async updateDelivery(
+    id: string,
+    payload: {
+      deliveryDate: string | null;
+      finalDeliveryDate: string | null;
+      delayDays: number;
+      finalObservation: string | null;
+    },
+  ) {
+    const res = await supabase.rpc('set_project_delivery', {
+      p_project_id: id,
+      p_delivery_date: payload.deliveryDate,
+      p_final_delivery_date: payload.finalDeliveryDate,
+      p_delay_days: payload.delayDays,
+      p_final_observation: payload.finalObservation,
+    });
     throwIfError(res as any);
   },
 
@@ -241,6 +263,28 @@ export const MeetingsApi = {
   },
 };
 
+export const DailyNotesApi = {
+  async listByProject(projectId: string): Promise<DailyNote[]> {
+    const res = await supabase
+      .from('daily_notes')
+      .select('id, date, note, authorEmail:author_email, createdAt:created_at, projectId:project_id')
+      .eq('project_id', projectId)
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false });
+    return throwIfError<DailyNote[]>(res as any);
+  },
+
+  async create(projectId: string, date: string, note: string) {
+    const res = await supabase.from('daily_notes').insert({ project_id: projectId, date, note });
+    throwIfError(res as any);
+  },
+
+  async remove(id: string) {
+    const res = await supabase.from('daily_notes').delete().eq('id', id);
+    throwIfError(res as any);
+  },
+};
+
 export interface DirectoryUser {
   id: string;
   name: string;
@@ -266,5 +310,63 @@ export const AuditApi = {
       .eq('project_id', projectId)
       .order('created_at', { ascending: false });
     return throwIfError<AuditLogEntry[]>(res as any);
+  },
+
+  // Historial global (todos los proyectos) para la vista de Timeline.
+  // Trae también el nombre/código del proyecto para poder agrupar por día.
+  async all(limit = 500): Promise<(AuditLogEntry & { projectId: string | null; projectName: string | null })[]> {
+    const res = await supabase
+      .from('audit_log')
+      .select(
+        'id, entityType:entity_type, entityId:entity_id, action, before, after, ' +
+          'actorEmail:actor_email, createdAt:created_at, projectId:project_id, ' +
+          'project:projects(name)',
+      )
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    const rows = throwIfError<any[]>(res as any);
+    return rows.map((r) => ({ ...r, projectName: r.project?.name ?? null }));
+  },
+};
+
+export const ProvidersApi = {
+  async list(): Promise<Provider[]> {
+    const res = await supabase.from('providers').select('id, name').order('name', { ascending: true });
+    return throwIfError<Provider[]>(res as any);
+  },
+
+  async create(name: string): Promise<Provider> {
+    const res = await supabase.from('providers').insert({ name }).select().single();
+    return throwIfError<Provider>(res as any);
+  },
+
+  async rename(id: string, name: string) {
+    const res = await supabase.from('providers').update({ name }).eq('id', id);
+    throwIfError(res as any);
+  },
+
+  async remove(id: string) {
+    const res = await supabase.from('providers').delete().eq('id', id);
+    throwIfError(res as any);
+  },
+};
+
+export const PhasesApi = {
+  async listByProject(projectId: string): Promise<ProjectPhase[]> {
+    const res = await supabase
+      .from('project_phases')
+      .select('id, projectId:project_id, key, label, orderIndex:order_index, startDate:start_date, durationDays:duration_days')
+      .eq('project_id', projectId)
+      .order('order_index', { ascending: true });
+    return throwIfError<ProjectPhase[]>(res as any);
+  },
+
+  async update(phaseId: string, payload: { startDate: string | null; durationDays: number }) {
+    const res = await supabase.rpc('set_project_phase', {
+      p_phase_id: phaseId,
+      p_start_date: payload.startDate,
+      p_duration_days: payload.durationDays,
+    });
+    throwIfError(res as any);
   },
 };

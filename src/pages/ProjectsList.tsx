@@ -1,33 +1,46 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
-import { ProjectsApi } from '../lib/services';
-import { STATUS_META, type Project, type ProjectStatus } from '../types/domain';
+import ProjectsDashboard from '../components/ProjectsDashboard';
+import { ProjectsApi, ProvidersApi } from '../lib/services';
+import { exportProjectsCsv, downloadCsvTemplate } from '../lib/csv';
+import { STATUS_META, type Project, type ProjectStatus, type Provider } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
+
+const ACTIVE_STATES: ProjectStatus[] = ['levantamiento', 'desarrollo', 'validacion'];
 
 export default function ProjectsList() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState<'all' | ProjectStatus>('all');
+  // Conjunto de estados activos en el filtro. Vacío = "todos".
+  const [statusFilters, setStatusFilters] = useState<Set<ProjectStatus>>(new Set());
   const [showIntake, setShowIntake] = useState(false);
-  const [form, setForm] = useState({ name: '', proveedor: 'MyOffice' });
-  const [proveedorChoice, setProveedorChoice] = useState<'MyOffice' | 'otro'>('MyOffice');
+  const [showDashboard, setShowDashboard] = useState(true);
+  const [form, setForm] = useState({ name: '', proveedor: '' });
+  const [proveedorChoice, setProveedorChoice] = useState<string>('otro');
   const navigate = useNavigate();
   const { profile } = useAuth();
   const canManage = profile?.role === 'admin' || profile?.role === 'desarrollador';
 
   async function load() {
     setLoading(true);
-    const data = await ProjectsApi.list();
+    const [data, provs] = await Promise.all([ProjectsApi.list(), ProvidersApi.list()]);
     setProjects(data);
+    setProviders(provs);
+    if (provs[0]) {
+      setProveedorChoice(provs[0].name);
+      setForm((f) => (f.proveedor ? f : { ...f, proveedor: provs[0].name }));
+    }
     setLoading(false);
   }
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const visible = projects.filter((p) => filterStatus === 'all' || p.status === filterStatus);
+  const visible = projects.filter((p) => statusFilters.size === 0 || statusFilters.has(p.status));
   const totals = {
     total: projects.length,
     activos: projects.filter((p) => p.status !== 'cerrado').length,
@@ -37,14 +50,45 @@ export default function ProjectsList() {
       : 0,
   };
 
+  // Clic normal en un KPI/segmento = filtrar solo por ese estado.
+  // Ctrl/Cmd+clic = añadir o quitar ese estado del filtro combinado.
+  function handleStatusToggle(status: ProjectStatus, additive: boolean) {
+    setStatusFilters((prev) => {
+      if (!additive) {
+        return prev.size === 1 && prev.has(status) ? new Set() : new Set([status]);
+      }
+      const next = new Set(prev);
+      next.has(status) ? next.delete(status) : next.add(status);
+      return next;
+    });
+  }
+
+  function toggleActivos(additive: boolean) {
+    setStatusFilters((prev) => {
+      if (!additive) {
+        const isOnlyActivos = ACTIVE_STATES.every((s) => prev.has(s)) && prev.size === ACTIVE_STATES.length;
+        return isOnlyActivos ? new Set() : new Set(ACTIVE_STATES);
+      }
+      const next = new Set(prev);
+      ACTIVE_STATES.forEach((s) => (next.has(s) ? next.delete(s) : next.add(s)));
+      return next;
+    });
+  }
+
+  const filterSummary = useMemo(() => {
+    if (statusFilters.size === 0) return 'Mostrando todos los proyectos';
+    const labels = [...statusFilters].map((s) => STATUS_META[s]);
+    return `Filtrando por: ${labels.join(', ')}`;
+  }, [statusFilters]);
+
   async function createProject() {
     if (!form.name.trim() || !form.proveedor.trim()) {
       alert('Ingresa al menos el nombre del proyecto y el proveedor.');
       return;
     }
     await ProjectsApi.create({ name: form.name, proveedor: form.proveedor });
-    setForm({ name: '', proveedor: 'MyOffice' });
-    setProveedorChoice('MyOffice');
+    setForm({ name: '', proveedor: providers[0]?.name ?? '' });
+    setProveedorChoice(providers[0]?.name ?? 'otro');
     setShowIntake(false);
     load();
   }
@@ -71,18 +115,40 @@ export default function ProjectsList() {
             (ficha técnica, flujo de procesos, manual de usuario y calendario de reuniones).
           </p>
         </div>
+        <button className="btn ghost small" onClick={() => setShowDashboard((s) => !s)}>
+          {showDashboard ? 'Ocultar dashboard' : 'Ver dashboard'}
+        </button>
       </div>
 
+      {showDashboard && !loading && (
+        <ProjectsDashboard projects={projects} onSliceClick={(status) => handleStatusToggle(status, false)} />
+      )}
+
       <div className="kpis">
-        <div className="kpi">
+        <div
+          className={`kpi ${statusFilters.size === 0 ? 'kpi-active' : ''}`}
+          onClick={() => setStatusFilters(new Set())}
+          style={{ cursor: 'pointer' }}
+          title="Ver todos los proyectos"
+        >
           <div className="label">Proyectos totales</div>
           <div className="value">{totals.total}</div>
         </div>
-        <div className="kpi k-blue">
+        <div
+          className={`kpi k-blue ${ACTIVE_STATES.every((s) => statusFilters.has(s)) && statusFilters.size === ACTIVE_STATES.length ? 'kpi-active' : ''}`}
+          onClick={(e) => toggleActivos(e.ctrlKey || e.metaKey)}
+          style={{ cursor: 'pointer' }}
+          title="Clic: solo activos · Ctrl/Cmd+clic: combinar con otros filtros"
+        >
           <div className="label">Activos</div>
           <div className="value">{totals.activos}</div>
         </div>
-        <div className="kpi k-green">
+        <div
+          className={`kpi k-green ${statusFilters.has('cerrado') && statusFilters.size === 1 ? 'kpi-active' : ''}`}
+          onClick={(e) => handleStatusToggle('cerrado', e.ctrlKey || e.metaKey)}
+          style={{ cursor: 'pointer' }}
+          title="Clic: solo cerrados · Ctrl/Cmd+clic: combinar con otros filtros"
+        >
           <div className="label">Cerrados</div>
           <div className="value">{totals.cerrados}</div>
         </div>
@@ -94,7 +160,13 @@ export default function ProjectsList() {
 
       <div className="toolbar">
         <div className="filters">
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)}>
+          <select
+            value={statusFilters.size === 1 ? [...statusFilters][0] : 'all'}
+            onChange={(e) => {
+              const v = e.target.value;
+              setStatusFilters(v === 'all' ? new Set() : new Set([v as ProjectStatus]));
+            }}
+          >
             <option value="all">Estado: todos</option>
             {Object.entries(STATUS_META).map(([k, label]) => (
               <option key={k} value={k}>
@@ -102,14 +174,21 @@ export default function ProjectsList() {
               </option>
             ))}
           </select>
+          <span className="filter-note">{filterSummary}</span>
         </div>
-        {canManage && (
-          <div className="btn-group">
+        <div className="btn-group">
+          <button className="btn ghost small" onClick={() => downloadCsvTemplate()}>
+            Descargar plantilla CSV
+          </button>
+          <button className="btn ghost small" onClick={() => exportProjectsCsv(visible)}>
+            Exportar CSV ↓
+          </button>
+          {canManage && (
             <button className="btn" onClick={() => setShowIntake((s) => !s)}>
               + Nuevo proyecto
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {showIntake && (
@@ -130,12 +209,14 @@ export default function ProjectsList() {
               <select
                 value={proveedorChoice}
                 onChange={(e) => {
-                  const choice = e.target.value as 'MyOffice' | 'otro';
+                  const choice = e.target.value;
                   setProveedorChoice(choice);
-                  setForm({ ...form, proveedor: choice === 'MyOffice' ? 'MyOffice' : '' });
+                  setForm({ ...form, proveedor: choice === 'otro' ? '' : choice });
                 }}
               >
-                <option value="MyOffice">MyOffice</option>
+                {providers.map((p) => (
+                  <option key={p.id} value={p.name}>{p.name}</option>
+                ))}
                 <option value="otro">Otro…</option>
               </select>
               {proveedorChoice === 'otro' && (

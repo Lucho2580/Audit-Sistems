@@ -4,6 +4,8 @@ import Login from './pages/Login';
 import ProjectsList from './pages/ProjectsList';
 import ProjectDetail from './pages/ProjectDetail';
 import SignPage from './pages/SignPage';
+import TimelinePage from './pages/TimelinePage';
+import ToolsPage from './pages/ToolsPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
@@ -31,6 +33,22 @@ export default function App() {
         element={
           <PrivateRoute>
             <ProjectDetail />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/timeline"
+        element={
+          <PrivateRoute>
+            <TimelinePage />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/tools"
+        element={
+          <PrivateRoute>
+            <ToolsPage />
           </PrivateRoute>
         }
       />

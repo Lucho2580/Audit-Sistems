@@ -53,6 +53,42 @@ export interface Project {
   sections: Section[];
   stats?: Stats;
   createdAt: string;
+  deliveryDate?: string | null;
+  finalDeliveryDate?: string | null;
+  delayDays?: number;
+  finalObservation?: string | null;
+}
+
+export interface DailyNote {
+  id: string;
+  date: string;
+  note: string;
+  authorEmail?: string;
+  createdAt: string;
+  projectId: string;
+}
+
+export interface Provider {
+  id: string;
+  name: string;
+}
+
+export type PhaseKey =
+  | 'levantamiento'
+  | 'diseno'
+  | 'implementacion'
+  | 'testing'
+  | 'entrega'
+  | 'fin';
+
+export interface ProjectPhase {
+  id: string;
+  projectId: string;
+  key: PhaseKey;
+  label: string;
+  orderIndex: number;
+  startDate: string | null;
+  durationDays: number;
 }
 
 export interface Participant {
@@ -113,6 +149,21 @@ export const PERCENT_OPTIONS = [0, 10, 25, 40, 50, 60, 75, 90, 100];
 
 export function bandOf(p: number): 'pendiente' | 'progreso' | 'completo' {
   return p === 0 ? 'pendiente' : p === 100 ? 'completo' : 'progreso';
+}
+
+// Fecha de fin calculada de una fase del roadmap (inicio + duración).
+export function phaseEndDate(phase: Pick<ProjectPhase, 'startDate' | 'durationDays'> | undefined | null): string | null {
+  if (!phase?.startDate) return null;
+  const d = new Date(phase.startDate + 'T00:00:00');
+  d.setDate(d.getDate() + phase.durationDays);
+  return d.toISOString().slice(0, 10);
+}
+
+// Diferencia en días entre dos fechas ISO (b - a). Positivo si b es posterior a a.
+export function daysBetween(a: string, b: string): number {
+  const d1 = new Date(a + 'T00:00:00');
+  const d2 = new Date(b + 'T00:00:00');
+  return Math.round((d2.getTime() - d1.getTime()) / 86400000);
 }
 
 export function computeItemStats(items: ChecklistItem[]): Stats {

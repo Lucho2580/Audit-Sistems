@@ -4,9 +4,14 @@ import AppShell from '../components/AppShell';
 import ChecklistSectionCard from '../components/ChecklistSectionCard';
 import MeetingsCalendar from '../components/MeetingsCalendar';
 import AuditHistoryPanel from '../components/AuditHistoryPanel';
-import { ProjectsApi, MeetingsApi } from '../lib/services';
+import RoadmapPhases from '../components/RoadmapPhases';
+import DeliveryPanel from '../components/DeliveryPanel';
+import { ProjectsApi, MeetingsApi, PhasesApi, DailyNotesApi } from '../lib/services';
 import { generateProjectReportPdf } from '../lib/pdf';
-import { STATUS_META, type Project, type Meeting, type ProjectStatus, type ItemResponsible } from '../types/domain';
+import {
+  STATUS_META, phaseEndDate,
+  type Project, type Meeting, type ProjectPhase, type ProjectStatus, type ItemResponsible, type DailyNote,
+} from '../types/domain';
 import { useAuth } from '../context/AuthContext';
 
 export default function ProjectDetail() {
@@ -18,14 +23,23 @@ export default function ProjectDetail() {
 
   const [project, setProject] = useState<Project | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [phases, setPhases] = useState<ProjectPhase[]>([]);
+  const [dailyNotes, setDailyNotes] = useState<DailyNote[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pendiente' | 'progreso' | 'completo'>('all');
   const [filterResp, setFilterResp] = useState<'all' | ItemResponsible>('all');
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [p, mts] = await Promise.all([ProjectsApi.get(id), MeetingsApi.listByProject(id)]);
+    const [p, mts, phs, notes] = await Promise.all([
+      ProjectsApi.get(id),
+      MeetingsApi.listByProject(id),
+      PhasesApi.listByProject(id),
+      DailyNotesApi.listByProject(id),
+    ]);
     setProject(p);
     setMeetings(mts);
+    setPhases(phs);
+    setDailyNotes(notes);
   }, [id]);
 
   useEffect(() => {
@@ -46,6 +60,8 @@ export default function ProjectDetail() {
   }
 
   const stats = project.stats ?? { total: 0, done: 0, prog: 0, pend: 0, pct: 0 };
+  const plannedEntregaDate = phaseEndDate(phases.find((p) => p.key === 'entrega'));
+  const plannedFinalDate = phaseEndDate(phases.find((p) => p.key === 'fin'));
 
   return (
     <AppShell>
@@ -115,7 +131,23 @@ export default function ProjectDetail() {
           />
         ))}
 
-      <MeetingsCalendar project={project} meetings={meetings} canEdit={canEdit} onChanged={load} />
+      <RoadmapPhases phases={phases} canEdit={canEdit} onChanged={load} />
+
+      <DeliveryPanel
+        project={project}
+        plannedEntregaDate={plannedEntregaDate}
+        plannedFinalDate={plannedFinalDate}
+        canEdit={canEdit}
+        onChanged={load}
+      />
+
+      <MeetingsCalendar
+        project={project}
+        meetings={meetings}
+        dailyNotes={dailyNotes}
+        canEdit={canEdit}
+        onChanged={load}
+      />
 
       <AuditHistoryPanel projectId={project.id} />
     </AppShell>
