@@ -7,7 +7,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="wrap">
       <div className="appbar">
-        <span>
+        <span className="brand">
+          <img src="/favicon.svg" alt="" width={22} height={22} />
           Sistema de auditoría <span className="dot">·</span> Desarrollo de software
         </span>
         {session && (

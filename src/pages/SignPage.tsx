@@ -76,7 +76,10 @@ export default function SignPage() {
   return (
     <div className="wrap">
       <div className="appbar">
-        <span>Sistema de auditoría <span className="dot">·</span> Firma digital de acta</span>
+        <span className="brand">
+          <img src="/favicon.svg" alt="" width={22} height={22} />
+          Sistema de auditoría <span className="dot">·</span> Firma digital de acta
+        </span>
       </div>
       <div className="masthead">
         <div>

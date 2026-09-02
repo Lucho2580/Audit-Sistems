@@ -16,6 +16,7 @@ body::before{content:"";position:fixed;inset:0;background-image:linear-gradient(
 .hidden{display:none !important;}
 
 .appbar{display:flex;justify-content:space-between;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--slate);border-bottom:1px solid var(--hairline);padding-bottom:14px;margin-bottom:26px;}
+.appbar .brand{display:flex;align-items:center;gap:9px;}
 .appbar .dot{color:var(--gold);}
 .appbar .userchip{display:flex;align-items:center;gap:10px;text-transform:none;letter-spacing:normal;}
 .appbar button.linklike{background:none;border:none;color:var(--ink-soft);cursor:pointer;font-family:inherit;font-size:inherit;text-decoration:underline;padding:0;}
