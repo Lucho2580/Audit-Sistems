@@ -10,6 +10,7 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -22,7 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadProfile(userId: string) {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, email, role, fullName:full_name')
+      .select('id, email, role, fullName:full_name, mustChangePassword:must_change_password')
       .eq('id', userId)
       .single();
     setProfile(error ? null : (data as Profile));
@@ -63,6 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async signOut() {
         await supabase.auth.signOut();
+      },
+      async refreshProfile() {
+        if (session) await loadProfile(session.user.id);
       },
     }),
     [session, profile, loading],

@@ -6,11 +6,13 @@ import ProjectDetail from './pages/ProjectDetail';
 import SignPage from './pages/SignPage';
 import TimelinePage from './pages/TimelinePage';
 import ToolsPage from './pages/ToolsPage';
+import ForceChangePassword from './pages/ForceChangePassword';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth();
+  const { session, profile, loading } = useAuth();
   if (loading) return <div className="wrap">Cargando…</div>;
   if (!session) return <Navigate to="/login" replace />;
+  if (profile?.mustChangePassword) return <ForceChangePassword />;
   return <>{children}</>;
 }
 

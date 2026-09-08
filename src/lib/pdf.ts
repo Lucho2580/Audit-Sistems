@@ -5,10 +5,11 @@ import {
 } from '../types/domain';
 
 const PDF_C = {
-  ink: [22, 35, 46] as [number, number, number],
-  slate: [91, 107, 120] as [number, number, number],
-  hairline: [215, 218, 213] as [number, number, number],
-  paper: [238, 240, 238] as [number, number, number],
+  ink: [28, 31, 35] as [number, number, number],
+  slate: [107, 113, 120] as [number, number, number],
+  hairline: [224, 221, 217] as [number, number, number],
+  paper: [244, 243, 241] as [number, number, number],
+  brand: [227, 6, 19] as [number, number, number],
 };
 const PAGE_W = 595.28, PAGE_H = 841.89, MARGIN = 40, CONTENT_W = PAGE_W - MARGIN * 2;
 
@@ -25,6 +26,7 @@ function nowStr() {
 
 function pdfHeader(doc: jsPDF, eyebrow: string, title: string, metaLines: string[]) {
   doc.setFillColor(...PDF_C.ink); doc.rect(0, 0, PAGE_W, 72, 'F');
+  doc.setFillColor(...PDF_C.brand); doc.rect(0, 72, PAGE_W, 3, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
   doc.text(eyebrow.toUpperCase(), MARGIN, 26);

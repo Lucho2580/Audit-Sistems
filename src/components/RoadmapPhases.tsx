@@ -8,13 +8,48 @@ interface Props {
   onChanged: () => void;
 }
 
-const PHASE_COLORS = ['var(--gold)', 'var(--blue)', 'var(--rust)', 'var(--green)', 'var(--slate)', 'var(--ink)'];
-const ROW_HEIGHT = 34;
+const PHASE_COLORS = [
+  'var(--blue)', 'var(--gold)', 'var(--rust)', 'var(--green)',
+  'var(--slate)', 'var(--ink-soft)', 'var(--blue)', 'var(--gold)',
+];
+const LABEL_COL = 160;
+const DAY_MS = 86400000;
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00');
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+function fmtShort(t: number) {
+  return new Date(t).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+}
+
+// Ticks semanales para rangos cortos; mensuales o trimestrales para proyectos
+// largos, para no terminar con decenas de etiquetas ilegibles superpuestas.
+function buildTicks(minTime: number, maxTime: number): { time: number; label: string }[] {
+  const totalDays = (maxTime - minTime) / DAY_MS;
+  const arr: { time: number; label: string }[] = [];
+
+  if (totalDays <= 56) {
+    const oneWeek = 7 * DAY_MS;
+    for (let t = minTime; t < maxTime; t += oneWeek) arr.push({ time: t, label: fmtShort(t) });
+  } else {
+    const stepMonths = totalDays <= 240 ? 1 : 3;
+    const cursor = new Date(minTime);
+    cursor.setDate(1);
+    cursor.setHours(0, 0, 0, 0);
+    while (cursor.getTime() < minTime) cursor.setMonth(cursor.getMonth() + 1);
+    while (cursor.getTime() <= maxTime) {
+      arr.push({
+        time: cursor.getTime(),
+        label: cursor.toLocaleDateString('es-ES', { month: 'short', year: totalDays > 400 ? '2-digit' : undefined }),
+      });
+      cursor.setMonth(cursor.getMonth() + stepMonths);
+    }
+  }
+  if (!arr.length || arr[arr.length - 1].time !== maxTime) arr.push({ time: maxTime, label: fmtShort(maxTime) });
+  return arr;
 }
 
 export default function RoadmapPhases({ phases, canEdit, onChanged }: Props) {
@@ -43,7 +78,7 @@ export default function RoadmapPhases({ phases, canEdit, onChanged }: Props) {
   }
 
   // Rango de fechas de las fases que ya tienen inicio configurado, para
-  // dibujar un único gráfico Gantt a escala.
+  // dibujar el Gantt a escala (una fila por fase).
   const ranges = useMemo(
     () =>
       phases
@@ -62,18 +97,17 @@ export default function RoadmapPhases({ phases, canEdit, onChanged }: Props) {
   const maxTime = ranges.length ? Math.max(...ranges.map((r) => r.end.getTime())) : null;
   const totalMs = minTime !== null && maxTime !== null ? Math.max(1, maxTime - minTime) : 1;
 
-  // Marcas de fecha (una por semana) que atraviesan todo el gráfico como
-  // líneas de cuadrícula compartidas por todas las filas.
-  const ticks = useMemo(() => {
-    if (minTime === null || maxTime === null) return [];
-    const oneWeek = 7 * 86400000;
-    const arr: { time: number; label: string }[] = [];
-    for (let t = minTime; t < maxTime; t += oneWeek) {
-      arr.push({ time: t, label: new Date(t).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) });
-    }
-    arr.push({ time: maxTime, label: new Date(maxTime).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }) });
-    return arr;
-  }, [minTime, maxTime]);
+  const ticks = useMemo(
+    () => (minTime !== null && maxTime !== null ? buildTicks(minTime, maxTime) : []),
+    [minTime, maxTime],
+  );
+
+  const todayPct = useMemo(() => {
+    if (minTime === null || maxTime === null) return null;
+    const now = Date.now();
+    if (now < minTime || now > maxTime) return null;
+    return ((now - minTime) / totalMs) * 100;
+  }, [minTime, maxTime, totalMs]);
 
   return (
     <div className="section">
@@ -89,8 +123,9 @@ export default function RoadmapPhases({ phases, canEdit, onChanged }: Props) {
           Configura al menos una fecha de inicio para ver el gráfico del roadmap.
         </div>
       ) : (
-        <div className="gantt-chart gantt-chart-single">
-          <div className="gantt-plot-wrap">
+        <div className="gantt">
+          <div className="gantt-head">
+            <div className="gantt-head-spacer" style={{ width: LABEL_COL }} />
             <div className="gantt-ticks">
               {ticks.map((t) => (
                 <span
@@ -102,7 +137,9 @@ export default function RoadmapPhases({ phases, canEdit, onChanged }: Props) {
                 </span>
               ))}
             </div>
-            <div className="gantt-plot" style={{ height: ROW_HEIGHT }}>
+          </div>
+          <div className="gantt-body">
+            <div className="gantt-gridlines" style={{ left: LABEL_COL }}>
               {ticks.map((t) => (
                 <div
                   key={t.time}
@@ -110,34 +147,60 @@ export default function RoadmapPhases({ phases, canEdit, onChanged }: Props) {
                   style={{ left: `${((t.time - minTime!) / totalMs) * 100}%` }}
                 />
               ))}
-              {phases.map((phase, idx) => {
-                const range = ranges.find((r) => r.phase.id === phase.id);
-                if (!range) return null;
-                return (
-                  <div
-                    key={phase.id}
-                    className="gantt-bar"
-                    style={{
-                      left: `${((range.start.getTime() - minTime!) / totalMs) * 100}%`,
-                      width: `${Math.max(2, ((range.end.getTime() - range.start.getTime()) / totalMs) * 100)}%`,
-                      background: PHASE_COLORS[idx % PHASE_COLORS.length],
-                    }}
-                    title={`${phase.label}: ${range.start.toISOString().slice(0, 10)} → ${range.end.toISOString().slice(0, 10)}`}
-                  />
-                );
-              })}
+              {todayPct !== null && (
+                <div className="gantt-today" style={{ left: `${todayPct}%` }}>
+                  <span className="gantt-today-label">HOY</span>
+                </div>
+              )}
             </div>
-          </div>
-          <div className="gantt-legend">
-            {phases.map((phase, idx) => (
-              <span className="gantt-legend-item" key={phase.id}>
-                <span
-                  className="gantt-legend-swatch"
-                  style={{ background: PHASE_COLORS[idx % PHASE_COLORS.length] }}
-                />
-                {phase.label}
-              </span>
-            ))}
+            {phases.map((phase, idx) => {
+              const range = ranges.find((r) => r.phase.id === phase.id);
+              const leftPct = range ? ((range.start.getTime() - minTime!) / totalMs) * 100 : 0;
+              const widthPct = range
+                ? Math.min(Math.max(2, ((range.end.getTime() - range.start.getTime()) / totalMs) * 100), 100 - leftPct)
+                : 0;
+              const showLabelInside = widthPct >= 12;
+              const rightSpacePct = 100 - (leftPct + widthPct);
+              const labelOnLeft = !showLabelInside && rightSpacePct < 8;
+              return (
+                <div className="gantt-row" key={phase.id}>
+                  <span className="gantt-row-label" title={phase.label}>{phase.label}</span>
+                  <div className="gantt-row-track">
+                    {range ? (
+                      <>
+                        <button
+                          type="button"
+                          className="gantt-bar"
+                          style={{
+                            left: `${leftPct}%`,
+                            width: `${widthPct}%`,
+                            background: PHASE_COLORS[idx % PHASE_COLORS.length],
+                          }}
+                          title={`${phase.label}: ${range.start.toISOString().slice(0, 10)} → ${range.end.toISOString().slice(0, 10)}`}
+                          aria-label={`${phase.label}: ${range.start.toISOString().slice(0, 10)} a ${range.end.toISOString().slice(0, 10)}, ${phase.durationDays} días`}
+                        >
+                          {showLabelInside ? phase.label : null}
+                        </button>
+                        {!showLabelInside && (
+                          <span
+                            className="gantt-bar-label-outside"
+                            style={
+                              labelOnLeft
+                                ? { right: `calc(${100 - leftPct}% + 8px)`, textAlign: 'right' }
+                                : { left: `calc(${leftPct + widthPct}% + 8px)` }
+                            }
+                          >
+                            {phase.label}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="gantt-row-empty">Sin fecha de inicio</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

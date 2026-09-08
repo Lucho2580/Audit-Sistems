@@ -8,7 +8,24 @@ export interface Profile {
   email: string;
   role: UserRole;
   fullName?: string;
+  mustChangePassword?: boolean;
 }
+
+// Versión ligera de un profile, usada por los pickers de asignación de
+// actores (jefe/responsable/proveedor) y por la administración de usuarios.
+export interface ProfileLite {
+  id: string;
+  email: string;
+  fullName: string | null;
+  role: UserRole;
+  mustChangePassword?: boolean;
+}
+
+export const ACTOR_ROLE_LABEL: Record<UserRole, string> = {
+  admin: 'Jefe de proyecto',
+  desarrollador: 'Persona asignada',
+  cliente: 'Proveedor',
+};
 
 export interface ItemLog {
   id: string;
@@ -57,6 +74,11 @@ export interface Project {
   finalDeliveryDate?: string | null;
   delayDays?: number;
   finalObservation?: string | null;
+  jefeId: string | null;
+  jefeNombre: string | null;
+  responsableId: string | null;
+  responsableNombre: string | null;
+  proveedorId: string | null;
 }
 
 export interface DailyNote {

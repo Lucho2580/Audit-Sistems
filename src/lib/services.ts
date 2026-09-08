@@ -2,13 +2,16 @@ import { supabase } from './supabase';
 import { computeProjectStats } from '../types/domain';
 import type {
   Project, Meeting, AuditLogEntry, ItemResponsible, ProjectStatus, MeetingState,
-  Provider, ProjectPhase, DailyNote,
+  Provider, ProjectPhase, DailyNote, ProfileLite, UserRole,
 } from '../types/domain';
 
 const PROJECT_SELECT = `
   id, code, name, proveedor, status, createdAt:created_at,
   deliveryDate:delivery_date, finalDeliveryDate:final_delivery_date,
   delayDays:delay_days, finalObservation:final_observation,
+  jefeId:jefe_id, jefeNombre:jefe_nombre,
+  responsableId:responsable_id, responsableNombre:responsable_nombre,
+  proveedorId:proveedor_id,
   sections (
     id, key, code, title, notes, orderIndex:order_index,
     items:checklist_items (
@@ -86,11 +89,27 @@ export const ProjectsApi = {
     return normalizeProject(data);
   },
 
-  async create(payload: { name: string; proveedor: string }): Promise<{ id: string }> {
+  async create(payload: { name: string }): Promise<{ id: string }> {
     const res = await supabase.rpc('create_project', {
-      p_name: payload.name, p_proveedor: payload.proveedor,
+      p_name: payload.name, p_proveedor: null,
     });
     return throwIfError<{ id: string }>(res as any);
+  },
+
+  // Asigna/reasigna los 3 actores del proyecto (jefe/responsable/proveedor).
+  // Se llama justo después de create() -- mismo patrón de dos pasos que ya usa
+  // MeetingsApi.create() -> createTeamsMeeting().
+  async setActors(
+    projectId: string,
+    payload: { jefeId: string; responsableId: string; proveedorId: string },
+  ): Promise<void> {
+    const res = await supabase.rpc('set_project_actors', {
+      p_project_id: projectId,
+      p_jefe_id: payload.jefeId,
+      p_responsable_id: payload.responsableId,
+      p_proveedor_id: payload.proveedorId,
+    });
+    throwIfError(res as any);
   },
 
   async updateStatus(id: string, status: ProjectStatus) {
@@ -361,6 +380,88 @@ export const ProvidersApi = {
 
   async remove(id: string) {
     const res = await supabase.from('providers').delete().eq('id', id);
+    throwIfError(res as any);
+  },
+};
+
+// Directorio interno de esta app (profiles reales), usado por los pickers de
+// asignación de actores y por la administración de usuarios. NO confundir con
+// DirectoryApi, que busca en el directorio externo de Microsoft Entra ID para
+// participantes de reuniones.
+export const ProfilesApi = {
+  async searchByRole(role: UserRole, query: string, limit = 20): Promise<ProfileLite[]> {
+    const res = await supabase.rpc('search_profiles_by_role', {
+      p_role: role, p_q: query, p_limit: limit,
+    });
+    const rows = throwIfError<{ id: string; email: string; full_name: string | null; must_change_password: boolean }[]>(res as any);
+    return rows.map((r) => ({
+      id: r.id, email: r.email, fullName: r.full_name, role, mustChangePassword: r.must_change_password,
+    }));
+  },
+
+  async getMany(ids: string[]): Promise<ProfileLite[]> {
+    if (!ids.length) return [];
+    const res = await supabase.rpc('get_profiles', { p_ids: ids });
+    const rows = throwIfError<{ id: string; email: string; full_name: string | null; role: UserRole }[]>(res as any);
+    return rows.map((r) => ({ id: r.id, email: r.email, fullName: r.full_name, role: r.role }));
+  },
+};
+
+export interface AdminCreatedUser {
+  id: string;
+  email: string;
+  tempPassword: string;
+  emailSent: boolean;
+  emailError?: string;
+}
+
+// Crea/edita/borra cuentas de "Persona asignada" (desarrollador) y "Proveedor"
+// (cliente) sin pasar por el signUp público (que exige confirmar por correo).
+// Llama a la Edge Function admin-manage-user, que usa la Admin API de
+// Supabase Auth con la service_role key -- por eso no se puede hacer desde
+// aquí directo con el cliente normal.
+export const UsersAdminApi = {
+  async list(role: 'desarrollador' | 'cliente'): Promise<ProfileLite[]> {
+    return ProfilesApi.searchByRole(role, '', 200);
+  },
+
+  async create(payload: { email: string; fullName: string; role: 'desarrollador' | 'cliente' }): Promise<AdminCreatedUser> {
+    const { data, error } = await supabase.functions.invoke<AdminCreatedUser>('admin-manage-user', {
+      body: { action: 'create', email: payload.email, fullName: payload.fullName, role: payload.role },
+    });
+    if (error) await throwFunctionError(error);
+    return data as AdminCreatedUser;
+  },
+
+  async update(id: string, payload: { fullName: string }): Promise<void> {
+    const { error } = await supabase.functions.invoke('admin-manage-user', {
+      body: { action: 'update', id, fullName: payload.fullName },
+    });
+    if (error) await throwFunctionError(error);
+  },
+
+  async remove(id: string): Promise<void> {
+    const { error } = await supabase.functions.invoke('admin-manage-user', {
+      body: { action: 'delete', id },
+    });
+    if (error) await throwFunctionError(error);
+  },
+
+  async resetPassword(id: string): Promise<{ tempPassword: string; emailSent: boolean; emailError?: string }> {
+    const { data, error } = await supabase.functions.invoke<{ tempPassword: string; emailSent: boolean; emailError?: string }>(
+      'admin-manage-user',
+      { body: { action: 'reset_password', id } },
+    );
+    if (error) await throwFunctionError(error);
+    return data as { tempPassword: string; emailSent: boolean; emailError?: string };
+  },
+};
+
+export const AuthApi = {
+  // Se llama justo después de que el usuario cambia su contraseña con éxito,
+  // para levantar el bloqueo de "debes cambiar tu contraseña".
+  async clearMustChangePassword(): Promise<void> {
+    const res = await supabase.rpc('clear_must_change_password');
     throwIfError(res as any);
   },
 };

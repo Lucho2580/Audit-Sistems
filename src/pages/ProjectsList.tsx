@@ -2,36 +2,41 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import ProjectsDashboard from '../components/ProjectsDashboard';
-import { ProjectsApi, ProvidersApi } from '../lib/services';
+import ProfilePicker from '../components/ProfilePicker';
+import { ProjectsApi } from '../lib/services';
 import { exportProjectsCsv, downloadCsvTemplate } from '../lib/csv';
-import { STATUS_META, type Project, type ProjectStatus, type Provider } from '../types/domain';
+import { STATUS_META, type Project, type ProjectStatus, type ProfileLite } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
 
 const ACTIVE_STATES: ProjectStatus[] = ['levantamiento', 'desarrollo', 'validacion'];
 
+interface ActorForm {
+  name: string;
+  jefe: ProfileLite | null;
+  responsable: ProfileLite | null;
+  proveedor: ProfileLite | null;
+}
+
+const EMPTY_FORM: ActorForm = { name: '', jefe: null, responsable: null, proveedor: null };
+
 export default function ProjectsList() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
   // Conjunto de estados activos en el filtro. Vacío = "todos".
   const [statusFilters, setStatusFilters] = useState<Set<ProjectStatus>>(new Set());
   const [showIntake, setShowIntake] = useState(false);
   const [showDashboard, setShowDashboard] = useState(true);
-  const [form, setForm] = useState({ name: '', proveedor: '' });
-  const [proveedorChoice, setProveedorChoice] = useState<string>('otro');
+  const [form, setForm] = useState<ActorForm>(EMPTY_FORM);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
   const { profile } = useAuth();
   const canManage = profile?.role === 'admin' || profile?.role === 'desarrollador';
+  const canCreate = profile?.role === 'admin';
 
   async function load() {
     setLoading(true);
-    const [data, provs] = await Promise.all([ProjectsApi.list(), ProvidersApi.list()]);
-    setProjects(data);
-    setProviders(provs);
-    if (provs[0]) {
-      setProveedorChoice(provs[0].name);
-      setForm((f) => (f.proveedor ? f : { ...f, proveedor: provs[0].name }));
-    }
+    setProjects(await ProjectsApi.list());
     setLoading(false);
   }
 
@@ -82,15 +87,31 @@ export default function ProjectsList() {
   }, [statusFilters]);
 
   async function createProject() {
-    if (!form.name.trim() || !form.proveedor.trim()) {
-      alert('Ingresa al menos el nombre del proyecto y el proveedor.');
-      return;
+    const errors: Record<string, string> = {};
+    if (!form.name.trim()) errors.name = 'Ingresa un nombre para el proyecto.';
+    if (!form.jefe) errors.jefe = 'Elige quién es el jefe de proyecto.';
+    if (!form.responsable) errors.responsable = 'Elige quién es la persona asignada.';
+    if (!form.proveedor) errors.proveedor = 'Elige el proveedor.';
+    setFormErrors(errors);
+    if (Object.keys(errors).length) return;
+
+    setCreating(true);
+    try {
+      const { id } = await ProjectsApi.create({ name: form.name.trim() });
+      await ProjectsApi.setActors(id, {
+        jefeId: form.jefe!.id,
+        responsableId: form.responsable!.id,
+        proveedorId: form.proveedor!.id,
+      });
+      setForm(EMPTY_FORM);
+      setFormErrors({});
+      setShowIntake(false);
+      load();
+    } catch (err) {
+      alert(`No se pudo crear el proyecto: ${(err as Error).message}`);
+    } finally {
+      setCreating(false);
     }
-    await ProjectsApi.create({ name: form.name, proveedor: form.proveedor });
-    setForm({ name: '', proveedor: providers[0]?.name ?? '' });
-    setProveedorChoice(providers[0]?.name ?? 'otro');
-    setShowIntake(false);
-    load();
   }
 
   async function changeStatus(id: string, status: ProjectStatus) {
@@ -183,7 +204,7 @@ export default function ProjectsList() {
           <button className="btn ghost small" onClick={() => exportProjectsCsv(visible)}>
             Exportar CSV ↓
           </button>
-          {canManage && (
+          {canCreate && (
             <button className="btn" onClick={() => setShowIntake((s) => !s)}>
               + Nuevo proyecto
             </button>
@@ -195,7 +216,7 @@ export default function ProjectsList() {
         <div className="intake">
           <h3>Crear proyecto</h3>
           <div className="intake-grid">
-            <div className="field">
+            <div className={`field${formErrors.name ? ' has-error' : ''}`}>
               <label>Nombre del proyecto</label>
               <input
                 type="text"
@@ -203,39 +224,42 @@ export default function ProjectsList() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="Ej. Portal de clientes"
               />
+              {formErrors.name && <span className="field-error">{formErrors.name}</span>}
             </div>
-            <div className="field">
+            <div className={`field${formErrors.jefe ? ' has-error' : ''}`}>
+              <label>Jefe de proyecto</label>
+              <ProfilePicker
+                role="admin"
+                value={form.jefe}
+                onChange={(p) => setForm({ ...form, jefe: p })}
+              />
+              {formErrors.jefe && <span className="field-error">{formErrors.jefe}</span>}
+            </div>
+            <div className={`field${formErrors.responsable ? ' has-error' : ''}`}>
+              <label>Persona asignada</label>
+              <ProfilePicker
+                role="desarrollador"
+                value={form.responsable}
+                onChange={(p) => setForm({ ...form, responsable: p })}
+              />
+              {formErrors.responsable && <span className="field-error">{formErrors.responsable}</span>}
+            </div>
+            <div className={`field${formErrors.proveedor ? ' has-error' : ''}`}>
               <label>Proveedor</label>
-              <select
-                value={proveedorChoice}
-                onChange={(e) => {
-                  const choice = e.target.value;
-                  setProveedorChoice(choice);
-                  setForm({ ...form, proveedor: choice === 'otro' ? '' : choice });
-                }}
-              >
-                {providers.map((p) => (
-                  <option key={p.id} value={p.name}>{p.name}</option>
-                ))}
-                <option value="otro">Otro…</option>
-              </select>
-              {proveedorChoice === 'otro' && (
-                <input
-                  type="text"
-                  value={form.proveedor}
-                  onChange={(e) => setForm({ ...form, proveedor: e.target.value })}
-                  placeholder="Ej. Acme S.A."
-                  style={{ marginTop: 8 }}
-                />
-              )}
+              <ProfilePicker
+                role="cliente"
+                value={form.proveedor}
+                onChange={(p) => setForm({ ...form, proveedor: p })}
+              />
+              {formErrors.proveedor && <span className="field-error">{formErrors.proveedor}</span>}
             </div>
           </div>
           <div className="intake-actions">
             <button className="btn ghost" onClick={() => setShowIntake(false)}>
               Cancelar
             </button>
-            <button className="btn" onClick={createProject}>
-              Crear proyecto
+            <button className="btn" onClick={createProject} disabled={creating}>
+              {creating ? 'Creando…' : 'Crear proyecto'}
             </button>
           </div>
         </div>
@@ -246,9 +270,9 @@ export default function ProjectsList() {
           <span>Código</span>
           <span>Proyecto</span>
           <span>Proveedor</span>
+          <span>Responsable</span>
           <span>Estado</span>
           <span>Avance</span>
-          <span></span>
           <span></span>
         </div>
         {loading ? (
@@ -261,6 +285,7 @@ export default function ProjectsList() {
               <span className="proj-code">{p.code}</span>
               <span className="proj-name">{p.name}</span>
               <span className="proj-client">{p.proveedor}</span>
+              <span className="proj-owner">{p.responsableNombre ?? '—'}</span>
               <select
                 className={`status-select ${p.status}`}
                 value={p.status}
@@ -279,7 +304,6 @@ export default function ProjectsList() {
                 </span>
                 <span className="pct">{p.stats?.pct ?? 0}%</span>
               </span>
-              <span></span>
               <span className="proj-actions">
                 <button className="btn small" onClick={() => navigate(`/projects/${p.id}`)}>
                   Ver detalle →

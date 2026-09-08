@@ -1,16 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import laViandaBlanco from '../assets/lavianda-blanco.png';
 
 export default function Login() {
-  const { session, signIn, signUp } = useAuth();
+  const { session, signIn } = useAuth();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -20,82 +18,54 @@ export default function Login() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    setInfo(null);
     setBusy(true);
-    const result =
-      mode === 'signin' ? await signIn(email, password) : await signUp(email, password, fullName);
+    const result = await signIn(email, password);
     setBusy(false);
-    if (result.error) {
-      setError(result.error);
-    } else if (mode === 'signup') {
-      setInfo('Cuenta creada. Revisa tu correo para confirmar el registro y luego inicia sesión.');
-      setMode('signin');
-    }
+    if (result.error) setError(result.error);
   }
 
   return (
-    <div className="wrap">
-      <div className="appbar">
-        <span className="brand">
-          <img src="/favicon.svg" alt="" width={22} height={22} />
-          Sistema de auditoría <span className="dot">·</span> Desarrollo de software
-        </span>
+    <div className="login-page">
+      <div className="login-brand">
+        <img className="login-logo" src={laViandaBlanco} alt="La Vianda" />
+        <div className="login-brand-body">
+          <h1 className="login-title">Sistema de<br />Auditoría</h1>
+          <div className="login-divider" />
+          <p className="login-tagline">
+            Control de levantamientos técnicos, proveedores y entregables de desarrollo de
+            software.
+          </p>
+        </div>
+        <div className="login-footer-note">Dirección de Sistemas · Uso interno</div>
       </div>
-      <div className="auth-shell">
-        <h1>{mode === 'signin' ? 'Iniciar sesión' : 'Crear cuenta'}</h1>
-        <p className="sub">
-          {mode === 'signin'
-            ? 'Ingresa con tu correo y contraseña para acceder al panel de auditoría.'
-            : 'Las cuentas nuevas se crean con rol "cliente"; un administrador puede darte más permisos luego.'}
-        </p>
-        {error && <div className="auth-error">{error}</div>}
-        {info && <div className="top-banner">{info}</div>}
-        <form onSubmit={handleSubmit}>
-          {mode === 'signup' && (
+
+      <div className="login-form-panel">
+        <div className="login-form">
+          <p className="eyebrow">Acceso restringido</p>
+          <h2>Iniciar sesión</h2>
+          <div className="login-form-rule" />
+          <p className="sub">Ingresa con tu correo y contraseña para acceder al panel de auditoría.</p>
+          {error && <div className="auth-error">{error}</div>}
+          <form onSubmit={handleSubmit}>
             <div className="auth-field">
-              <label>Nombre completo</label>
+              <label>Correo corporativo</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
+            <div className="auth-field">
+              <label>Contraseña</label>
               <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                minLength={6}
                 required
               />
             </div>
-          )}
-          <div className="auth-field">
-            <label>Correo</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </div>
-          <div className="auth-field">
-            <label>Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              minLength={6}
-              required
-            />
-          </div>
-          <button className="btn" type="submit" disabled={busy} style={{ width: '100%' }}>
-            {busy ? 'Un momento…' : mode === 'signin' ? 'Entrar' : 'Crear cuenta'}
-          </button>
-        </form>
-        <div className="auth-switch">
-          {mode === 'signin' ? (
-            <>
-              ¿No tienes cuenta?{' '}
-              <button onClick={() => setMode('signup')} type="button">
-                Regístrate
-              </button>
-            </>
-          ) : (
-            <>
-              ¿Ya tienes cuenta?{' '}
-              <button onClick={() => setMode('signin')} type="button">
-                Inicia sesión
-              </button>
-            </>
-          )}
+            <button className="btn" type="submit" disabled={busy} style={{ width: '100%' }}>
+              {busy ? 'Un momento…' : 'Entrar al panel'}
+            </button>
+          </form>
+          <div className="auth-switch">¿Sin acceso? Solicítalo a la Dirección de Sistemas.</div>
         </div>
       </div>
     </div>
