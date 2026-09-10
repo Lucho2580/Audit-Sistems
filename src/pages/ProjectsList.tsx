@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import ProjectsDashboard from '../components/ProjectsDashboard';
 import ProfilePicker from '../components/ProfilePicker';
+import ProviderPicker from '../components/ProviderPicker';
+import { useSidebarStats, useDashboardToggle } from '../context/ShellChromeContext';
 import { ProjectsApi } from '../lib/services';
 import { exportProjectsCsv, downloadCsvTemplate } from '../lib/csv';
-import { STATUS_META, type Project, type ProjectStatus, type ProfileLite } from '../types/domain';
+import { STATUS_META, type Project, type ProjectStatus, type ProfileLite, type Provider } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
 
 const ACTIVE_STATES: ProjectStatus[] = ['levantamiento', 'desarrollo', 'validacion'];
@@ -14,7 +16,7 @@ interface ActorForm {
   name: string;
   jefe: ProfileLite | null;
   responsable: ProfileLite | null;
-  proveedor: ProfileLite | null;
+  proveedor: Provider | null;
 }
 
 const EMPTY_FORM: ActorForm = { name: '', jefe: null, responsable: null, proveedor: null };
@@ -31,8 +33,10 @@ export default function ProjectsList() {
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const canManage = profile?.role === 'admin' || profile?.role === 'desarrollador';
-  const canCreate = profile?.role === 'admin';
+  // El asignado (desarrollador) ya no puede cambiar el estado ni borrar
+  // proyectos desde la lista -- solo entrar a ver el detalle de los suyos.
+  const canManage = profile?.role === 'admin' || profile?.role === 'superadmin';
+  const canCreate = profile?.role === 'admin' || profile?.role === 'superadmin';
 
   async function load() {
     setLoading(true);
@@ -86,6 +90,46 @@ export default function ProjectsList() {
     return `Filtrando por: ${labels.join(', ')}`;
   }, [statusFilters]);
 
+  useDashboardToggle(
+    useMemo(() => ({ active: showDashboard, onToggle: () => setShowDashboard((s) => !s) }), [showDashboard]),
+  );
+
+  const activosActive = ACTIVE_STATES.every((s) => statusFilters.has(s)) && statusFilters.size === ACTIVE_STATES.length;
+  const cerradosActive = statusFilters.has('cerrado') && statusFilters.size === 1;
+  useSidebarStats(
+    useMemo(
+      () => ({
+        title: 'Resumen',
+        items: [
+          {
+            label: 'Proyectos totales',
+            value: String(totals.total),
+            note: 'en el sistema',
+            active: statusFilters.size === 0,
+            onClick: () => setStatusFilters(new Set()),
+          },
+          {
+            label: 'Activos',
+            value: String(totals.activos),
+            note: 'en auditoría',
+            active: activosActive,
+            onClick: (e: React.MouseEvent) => toggleActivos(e.ctrlKey || e.metaKey),
+          },
+          {
+            label: 'Cerrados',
+            value: String(totals.cerrados),
+            note: 'con acta final',
+            active: cerradosActive,
+            onClick: (e: React.MouseEvent) => handleStatusToggle('cerrado', e.ctrlKey || e.metaKey),
+          },
+          { label: 'Avance promedio', value: `${totals.avg}%`, note: 'de checkpoints' },
+        ],
+      }),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [totals.total, totals.activos, totals.cerrados, totals.avg, statusFilters, activosActive, cerradosActive],
+    ),
+  );
+
   async function createProject() {
     const errors: Record<string, string> = {};
     if (!form.name.trim()) errors.name = 'Ingresa un nombre para el proyecto.';
@@ -97,7 +141,7 @@ export default function ProjectsList() {
 
     setCreating(true);
     try {
-      const { id } = await ProjectsApi.create({ name: form.name.trim() });
+      const { id } = await ProjectsApi.create({ name: form.name.trim(), proveedor: form.proveedor!.name });
       await ProjectsApi.setActors(id, {
         jefeId: form.jefe!.id,
         responsableId: form.responsable!.id,
@@ -131,57 +175,21 @@ export default function ProjectsList() {
         <div>
           <p className="eyebrow">Panel administrativo</p>
           <h1>Proyectos en auditoría</h1>
-          <p className="sub">
-            Crea proyectos, controla su estado y entra al detalle de cada levantamiento técnico
-            (ficha técnica, flujo de procesos, manual de usuario y calendario de reuniones).
-          </p>
         </div>
-        <button className="btn ghost small" onClick={() => setShowDashboard((s) => !s)}>
-          {showDashboard ? 'Ocultar dashboard' : 'Ver dashboard'}
-        </button>
+        <p className="intro">
+          Crea proyectos, controla su estado y entra al detalle de cada levantamiento técnico
+          (ficha técnica, flujo de procesos, manual de usuario y calendario de reuniones).
+        </p>
       </div>
 
       {showDashboard && !loading && (
         <ProjectsDashboard projects={projects} onSliceClick={(status) => handleStatusToggle(status, false)} />
       )}
 
-      <div className="kpis">
-        <div
-          className={`kpi ${statusFilters.size === 0 ? 'kpi-active' : ''}`}
-          onClick={() => setStatusFilters(new Set())}
-          style={{ cursor: 'pointer' }}
-          title="Ver todos los proyectos"
-        >
-          <div className="label">Proyectos totales</div>
-          <div className="value">{totals.total}</div>
-        </div>
-        <div
-          className={`kpi k-blue ${ACTIVE_STATES.every((s) => statusFilters.has(s)) && statusFilters.size === ACTIVE_STATES.length ? 'kpi-active' : ''}`}
-          onClick={(e) => toggleActivos(e.ctrlKey || e.metaKey)}
-          style={{ cursor: 'pointer' }}
-          title="Clic: solo activos · Ctrl/Cmd+clic: combinar con otros filtros"
-        >
-          <div className="label">Activos</div>
-          <div className="value">{totals.activos}</div>
-        </div>
-        <div
-          className={`kpi k-green ${statusFilters.has('cerrado') && statusFilters.size === 1 ? 'kpi-active' : ''}`}
-          onClick={(e) => handleStatusToggle('cerrado', e.ctrlKey || e.metaKey)}
-          style={{ cursor: 'pointer' }}
-          title="Clic: solo cerrados · Ctrl/Cmd+clic: combinar con otros filtros"
-        >
-          <div className="label">Cerrados</div>
-          <div className="value">{totals.cerrados}</div>
-        </div>
-        <div className="kpi k-gold">
-          <div className="label">Avance promedio</div>
-          <div className="value">{totals.avg}%</div>
-        </div>
-      </div>
-
       <div className="toolbar">
         <div className="filters">
           <select
+            className="filter-select"
             value={statusFilters.size === 1 ? [...statusFilters][0] : 'all'}
             onChange={(e) => {
               const v = e.target.value;
@@ -213,107 +221,117 @@ export default function ProjectsList() {
       </div>
 
       {showIntake && (
-        <div className="intake">
-          <h3>Crear proyecto</h3>
-          <div className="intake-grid">
-            <div className={`field${formErrors.name ? ' has-error' : ''}`}>
-              <label>Nombre del proyecto</label>
-              <input
-                type="text"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Ej. Portal de clientes"
-              />
-              {formErrors.name && <span className="field-error">{formErrors.name}</span>}
+        <div className="modal-overlay" onClick={() => setShowIntake(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <div className="modal-kicker">Nuevo registro</div>
+                <h2 className="modal-title">Crear proyecto</h2>
+              </div>
+              <button className="modal-close" title="Cerrar" onClick={() => setShowIntake(false)}>
+                ×
+              </button>
             </div>
-            <div className={`field${formErrors.jefe ? ' has-error' : ''}`}>
-              <label>Jefe de proyecto</label>
-              <ProfilePicker
-                role="admin"
-                value={form.jefe}
-                onChange={(p) => setForm({ ...form, jefe: p })}
-              />
-              {formErrors.jefe && <span className="field-error">{formErrors.jefe}</span>}
+            <div className="modal-body">
+              <p className="modal-intro">
+                El código se asigna automáticamente al guardar. Los tres roles se eligen entre las
+                cuentas creadas en Herramientas.
+              </p>
+              <div className="modal-fields">
+                <div className={`modal-field${formErrors.name ? ' has-error' : ''}`}>
+                  <label>Nombre del proyecto</label>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="Ej. Portal de clientes"
+                  />
+                  {formErrors.name && <span className="field-error">{formErrors.name}</span>}
+                </div>
+                <div className="modal-field-grid">
+                  <div className={`modal-field${formErrors.jefe ? ' has-error' : ''}`}>
+                    <label>Jefe de proyecto</label>
+                    <ProfilePicker role="admin" value={form.jefe} onChange={(p) => setForm({ ...form, jefe: p })} />
+                    {formErrors.jefe && <span className="field-error">{formErrors.jefe}</span>}
+                  </div>
+                  <div className={`modal-field${formErrors.responsable ? ' has-error' : ''}`}>
+                    <label>Persona asignada</label>
+                    <ProfilePicker
+                      role="desarrollador"
+                      value={form.responsable}
+                      onChange={(p) => setForm({ ...form, responsable: p })}
+                    />
+                    {formErrors.responsable && <span className="field-error">{formErrors.responsable}</span>}
+                  </div>
+                </div>
+                <div className={`modal-field${formErrors.proveedor ? ' has-error' : ''}`}>
+                  <label>Proveedor</label>
+                  <ProviderPicker value={form.proveedor} onChange={(p) => setForm({ ...form, proveedor: p })} />
+                  {formErrors.proveedor && <span className="field-error">{formErrors.proveedor}</span>}
+                </div>
+              </div>
+              <div className="stat-grid modal-stat-grid">
+                <div className="stat-item">
+                  <div className="stat-label">Código</div>
+                  <div className="stat-value">Automático</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-label">Estado inicial</div>
+                  <div className="stat-value">Activo</div>
+                </div>
+              </div>
             </div>
-            <div className={`field${formErrors.responsable ? ' has-error' : ''}`}>
-              <label>Persona asignada</label>
-              <ProfilePicker
-                role="desarrollador"
-                value={form.responsable}
-                onChange={(p) => setForm({ ...form, responsable: p })}
-              />
-              {formErrors.responsable && <span className="field-error">{formErrors.responsable}</span>}
+            <div className="modal-foot">
+              <span className="modal-foot-hint">Los checkpoints se generan al crear el proyecto.</span>
+              <div className="modal-foot-actions">
+                <button className="btn ghost" onClick={() => setShowIntake(false)}>
+                  Cancelar
+                </button>
+                <button className="btn" onClick={createProject} disabled={creating}>
+                  {creating ? 'Creando…' : 'Crear proyecto'}
+                </button>
+              </div>
             </div>
-            <div className={`field${formErrors.proveedor ? ' has-error' : ''}`}>
-              <label>Proveedor</label>
-              <ProfilePicker
-                role="cliente"
-                value={form.proveedor}
-                onChange={(p) => setForm({ ...form, proveedor: p })}
-              />
-              {formErrors.proveedor && <span className="field-error">{formErrors.proveedor}</span>}
-            </div>
-          </div>
-          <div className="intake-actions">
-            <button className="btn ghost" onClick={() => setShowIntake(false)}>
-              Cancelar
-            </button>
-            <button className="btn" onClick={createProject} disabled={creating}>
-              {creating ? 'Creando…' : 'Crear proyecto'}
-            </button>
           </div>
         </div>
       )}
 
       <div className="proj-table">
-        <div className="proj-row head">
-          <span>Código</span>
-          <span>Proyecto</span>
-          <span>Proveedor</span>
-          <span>Responsable</span>
-          <span>Estado</span>
-          <span>Avance</span>
-          <span></span>
-        </div>
         {loading ? (
           <div className="empty-state">Cargando…</div>
         ) : visible.length === 0 ? (
           <div className="empty-state">No hay proyectos con este filtro. Crea uno con “+ Nuevo proyecto”.</div>
         ) : (
           visible.map((p) => (
-            <div className="proj-row" key={p.id}>
-              <span className="proj-code">{p.code}</span>
-              <span className="proj-name">{p.name}</span>
-              <span className="proj-client">{p.proveedor}</span>
-              <span className="proj-owner">{p.responsableNombre ?? '—'}</span>
-              <select
-                className={`status-select ${p.status}`}
-                value={p.status}
-                disabled={!canManage}
-                onChange={(e) => changeStatus(p.id, e.target.value as ProjectStatus)}
-              >
-                {Object.entries(STATUS_META).map(([k, label]) => (
-                  <option key={k} value={k}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <span className="proj-progress">
-                <span className="bar-track">
-                  <span className="bar-fill" style={{ width: `${p.stats?.pct ?? 0}%` }} />
-                </span>
-                <span className="pct">{p.stats?.pct ?? 0}%</span>
-              </span>
-              <span className="proj-actions">
-                <button className="btn small" onClick={() => navigate(`/projects/${p.id}`)}>
-                  Ver detalle →
-                </button>
+            <div className="proj-row" key={p.id} onClick={() => navigate(`/projects/${p.id}`)} title="Ver detalle del proyecto">
+              <div className="proj-main">
+                <div className="proj-code">{p.code}</div>
+                <div className="proj-name">{p.name}</div>
+                <div className="proj-meta">{p.proveedor} · {p.responsableNombre ?? '—'}</div>
+              </div>
+              <div className="proj-side" onClick={(e) => e.stopPropagation()}>
+                <select
+                  className={`status-select ${p.status}`}
+                  value={p.status}
+                  disabled={!canManage}
+                  onChange={(e) => changeStatus(p.id, e.target.value as ProjectStatus)}
+                >
+                  {Object.entries(STATUS_META).map(([k, label]) => (
+                    <option key={k} value={k}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <span className="proj-pct">{p.stats?.pct ?? 0}%</span>
                 {canManage && (
-                  <button className="btn small danger" onClick={() => deleteProject(p)}>
-                    Eliminar
+                  <button className="del-btn" title="Eliminar proyecto" onClick={() => deleteProject(p)}>
+                    ×
                   </button>
                 )}
-              </span>
+              </div>
+              <div className="proj-bar-track">
+                <div className="proj-bar-fill" style={{ width: `${p.stats?.pct ?? 0}%` }} />
+              </div>
             </div>
           ))
         )}

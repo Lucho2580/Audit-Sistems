@@ -9,8 +9,8 @@ interface Props {
   section: Section;
   filterStatus: 'all' | 'pendiente' | 'progreso' | 'completo';
   filterResp: 'all' | ItemResponsible;
-  canEdit: boolean; // agregar/eliminar checkpoints, alternar responsable
-  canEditPercent: boolean; // actualizar avance, notas y observaciones
+  canEdit: boolean; // agregar/eliminar checkpoints, alternar responsable, notas de sección
+  canEditPercent: boolean; // actualizar avance y agregar observaciones al checkpoint
   onChanged: () => void;
 }
 
@@ -127,7 +127,7 @@ export default function ChecklistSectionCard({ section, filterStatus, filterResp
         {visibleItems.length === 0 && (
           <li className="item-block">
             <div className="item">
-              <span className="item-text" style={{ color: 'var(--slate)' }}>
+              <span className="item-text" style={{ color: 'var(--slate)', gridColumn: '1 / -1' }}>
                 Sin checkpoints con estos filtros
               </span>
             </div>
@@ -142,36 +142,38 @@ export default function ChecklistSectionCard({ section, filterStatus, filterResp
                   {section.code}-{String(it.n).padStart(2, '0')}
                 </span>
                 <span className={`item-text ${band === 'completo' ? 'done' : ''}`}>{it.text}</span>
-                <span
-                  className={`resp-tag ${it.resp}`}
-                  onClick={() => canEdit && toggleResp(it)}
-                  style={{ cursor: canEdit ? 'pointer' : 'default' }}
-                >
-                  {RESP_LABEL[it.resp]}
-                </span>
-                <select
-                  className={`percent-select ${band}`}
-                  value={it.percent}
-                  disabled={!canEditPercent}
-                  onChange={(e) => handlePercentChange(it, Number(e.target.value))}
-                >
-                  {PERCENT_OPTIONS.map((p) => (
-                    <option key={p} value={p}>
-                      {p}%
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className={`hist-btn ${it.log.length ? 'has-log' : ''}`}
-                  onClick={() => toggleHistory(it.id)}
-                >
-                  🕓 {it.log.length}
-                </button>
-                {canEdit && (
-                  <button className="del-btn" title="Eliminar checkpoint" onClick={() => deleteItem(it)}>
-                    ×
+                <span className="item-actions">
+                  <span
+                    className={`resp-tag ${it.resp}`}
+                    onClick={() => canEdit && toggleResp(it)}
+                    style={{ cursor: canEdit ? 'pointer' : 'default' }}
+                  >
+                    {RESP_LABEL[it.resp]}
+                  </span>
+                  <select
+                    className={`percent-select ${band}`}
+                    value={it.percent}
+                    disabled={!canEditPercent}
+                    onChange={(e) => handlePercentChange(it, Number(e.target.value))}
+                  >
+                    {PERCENT_OPTIONS.map((p) => (
+                      <option key={p} value={p}>
+                        {p}%
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className={`hist-btn ${it.log.length ? 'has-log' : ''}`}
+                    onClick={() => toggleHistory(it.id)}
+                  >
+                    🕓 {it.log.length}
                   </button>
-                )}
+                  {canEdit && (
+                    <button className="del-btn" title="Eliminar checkpoint" onClick={() => deleteItem(it)}>
+                      ×
+                    </button>
+                  )}
+                </span>
               </div>
 
               {pendingObs?.id === it.id && (
@@ -262,7 +264,7 @@ export default function ChecklistSectionCard({ section, filterStatus, filterResp
           onChange={(e) => setNotes(e.target.value)}
           onBlur={saveNotes}
           placeholder="Observaciones generales de la sección…"
-          disabled={!canEditPercent}
+          disabled={!canEdit}
         />
       </div>
     </div>

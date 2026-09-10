@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import ProjectsList from './pages/ProjectsList';
 import ProjectDetail from './pages/ProjectDetail';
 import SignPage from './pages/SignPage';
@@ -22,6 +23,7 @@ export default function App() {
       {/* Ruta pública: firma de actas vía enlace con token, sin necesidad de cuenta */}
       <Route path="/sign/:token" element={<SignPage />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/"
         element={

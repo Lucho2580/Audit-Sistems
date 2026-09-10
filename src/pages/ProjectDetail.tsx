@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AppShell from '../components/AppShell';
+import { useSidebarStats } from '../context/ShellChromeContext';
 import ChecklistSectionCard from '../components/ChecklistSectionCard';
 import MeetingsCalendar from '../components/MeetingsCalendar';
 import AuditHistoryPanel from '../components/AuditHistoryPanel';
@@ -18,8 +19,12 @@ export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const canEdit = profile?.role === 'admin' || profile?.role === 'desarrollador';
-  const canEditPercent = canEdit || profile?.role === 'cliente';
+  // canEdit: administración completa del proyecto (secciones, checkpoints,
+  // reuniones, roadmap, entrega) -- solo jefe de proyecto/superadmin. El
+  // asignado (desarrollador) ya no entra aquí: solo puede cambiar el % de
+  // sus checkpoints y agregar observaciones (canEditPercent).
+  const canEdit = profile?.role === 'admin' || profile?.role === 'superadmin';
+  const canEditPercent = canEdit || profile?.role === 'desarrollador';
 
   const [project, setProject] = useState<Project | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -46,6 +51,22 @@ export default function ProjectDetail() {
     load();
   }, [load]);
 
+  const stats = project?.stats ?? { total: 0, done: 0, prog: 0, pend: 0, pct: 0 };
+  useSidebarStats(
+    useMemo(
+      () => ({
+        title: 'Checkpoints',
+        items: [
+          { label: 'Checkpoints totales', value: String(stats.total), note: 'en el proyecto' },
+          { label: 'Completados', value: String(stats.done), note: 'con firma' },
+          { label: 'En progreso', value: String(stats.prog), note: 'en revisión' },
+          { label: 'Pendientes', value: String(stats.pend), note: 'sin iniciar' },
+        ],
+      }),
+      [stats.total, stats.done, stats.prog, stats.pend],
+    ),
+  );
+
   if (!project) {
     return (
       <AppShell>
@@ -59,7 +80,6 @@ export default function ProjectDetail() {
     load();
   }
 
-  const stats = project.stats ?? { total: 0, done: 0, prog: 0, pend: 0, pct: 0 };
   const plannedEntregaDate = phaseEndDate(phases.find((p) => p.key === 'entrega'));
   const plannedFinalDate = phaseEndDate(phases.find((p) => p.key === 'fin'));
 
@@ -78,7 +98,7 @@ export default function ProjectDetail() {
         <div className="status-select-wrap">
           <label>Estado del proyecto</label>
           <select
-            className={`status-select ${project.status}`}
+            className={`status-select solid ${project.status}`}
             value={project.status}
             disabled={!canEdit}
             onChange={(e) => changeStatus(e.target.value as ProjectStatus)}
@@ -90,22 +110,15 @@ export default function ProjectDetail() {
         </div>
       </div>
 
-      <div className="kpis">
-        <div className="kpi"><div className="label">Checkpoints totales</div><div className="value">{stats.total}</div></div>
-        <div className="kpi k-green"><div className="label">Completados</div><div className="value">{stats.done}</div></div>
-        <div className="kpi k-gold"><div className="label">En progreso</div><div className="value">{stats.prog}</div></div>
-        <div className="kpi k-rust"><div className="label">Pendientes</div><div className="value">{stats.pend}</div></div>
-      </div>
-
       <div className="toolbar">
         <div className="filters">
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)}>
+          <select className="filter-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)}>
             <option value="all">Estado: todos</option>
             <option value="pendiente">Pendiente (0%)</option>
             <option value="progreso">En progreso</option>
             <option value="completo">Completo (100%)</option>
           </select>
-          <select value={filterResp} onChange={(e) => setFilterResp(e.target.value as any)}>
+          <select className="filter-select" value={filterResp} onChange={(e) => setFilterResp(e.target.value as any)}>
             <option value="all">Responsable: todos</option>
             <option value="cliente">Cliente</option>
             <option value="desarrollador">Desarrollador</option>
