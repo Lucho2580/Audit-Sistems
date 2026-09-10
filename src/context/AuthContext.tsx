@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { SITE_URL } from '../lib/site';
 import type { Profile } from '../types/domain';
 
 interface AuthContextValue {
@@ -68,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async requestPasswordReset(email) {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
+          redirectTo: `${SITE_URL}/reset-password`,
         });
         return { error: error?.message };
       },

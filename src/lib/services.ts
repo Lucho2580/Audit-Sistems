@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { SITE_URL } from './site';
 import { computeProjectStats } from '../types/domain';
 import type {
   Project, Meeting, AuditLogEntry, ItemResponsible, ProjectStatus, MeetingState,
@@ -277,7 +278,7 @@ export const MeetingsApi = {
   async getSignLink(participantId: string): Promise<string> {
     const res = await supabase.rpc('get_sign_link', { p_participant_id: participantId });
     const token = throwIfError<string>(res as any);
-    return `${window.location.origin}/sign/${token}`;
+    return `${SITE_URL}/sign/${token}`;
   },
 
   async addParticipant(meetingId: string, label: string, email: string) {
