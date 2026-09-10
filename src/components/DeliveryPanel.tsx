@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ProjectsApi } from '../lib/services';
-import { daysBetween, type Project } from '../types/domain';
+import { daysBetween, STATUS_META, type Project } from '../types/domain';
 
 interface Props {
   project: Project;
@@ -98,23 +98,22 @@ export default function DeliveryPanel({ project, plannedEntregaDate, plannedFina
         </div>
       </div>
 
-      <div className="delivery-block">
-        <div className="delivery-block-title">Planificado (según roadmap)</div>
-        <div className="intake-grid">
-          <div className="field readonly-field">
-            <label>Entrega planificada</label>
-            <div className="static-value">{plannedEntregaDate}</div>
-          </div>
-          <div className="field readonly-field">
-            <label>Entrega final planificada</label>
-            <div className="static-value">{plannedFinalDate ?? '—'}</div>
-          </div>
-          <div className="field readonly-field">
-            <label>Días de atraso (automático)</label>
-            <div className={`static-value ${computedDelay > 0 ? 'delay-value' : ''}`}>
-              {computedDelay} {computedDelay === 1 ? 'día' : 'días'}
-            </div>
-          </div>
+      <div className="stat-grid">
+        <div className="stat-item">
+          <div className="stat-label">Entrega prevista</div>
+          <div className="stat-value">{plannedEntregaDate}</div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-label">Entrega final planificada</div>
+          <div className="stat-value">{plannedFinalDate ?? '—'}</div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-label">Días de atraso</div>
+          <div className={`stat-value ${computedDelay > 0 ? 'accent' : ''}`}>{computedDelay}</div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-label">Fase actual</div>
+          <div className="stat-value">{STATUS_META[project.status]}</div>
         </div>
       </div>
 

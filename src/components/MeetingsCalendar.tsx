@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { MeetingsApi, DailyNotesApi, type DirectoryUser } from '../lib/services';
+import { MeetingsApi, DailyNotesApi, ProfilesApi, type DirectoryUser } from '../lib/services';
 import { generateMeetingMinutesPdf } from '../lib/pdf';
 import { MEETING_STATE_META, type DailyNote, type Meeting, type MeetingState, type Project } from '../types/domain';
 import DirectorySearch from './DirectorySearch';
@@ -32,8 +32,10 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [openDocs, setOpenDocs] = useState<Set<string>>(new Set());
-  const [formState, setFormState] = useState({ date: todayISO(), time: '10:00', title: '' });
+  const [formState, setFormState] = useState({ date: todayISO(), time: '10:00', title: '', agenda: '' });
   const [newParticipants, setNewParticipants] = useState<DirectoryUser[]>([]);
+  const [showAddParticipant, setShowAddParticipant] = useState(false);
+  const [actorEmails, setActorEmails] = useState<Record<string, string>>({});
   const [docDrafts, setDocDrafts] = useState<Record<string, Partial<Meeting>>>({});
   const [copiedFor, setCopiedFor] = useState<string | null>(null);
   const [notifying, setNotifying] = useState<string | null>(null);
@@ -70,18 +72,56 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
     return { ...mt, ...docDrafts[mt.id] };
   }
 
+  // Jefe, persona asignada y proveedor son participantes fijos de la reunión
+  // -- se toman siempre del proyecto (así que si cambia quién es la persona
+  // asignada o el proveedor, la próxima reunión ya sale con el actor
+  // correcto) y no se pueden quitar desde este formulario. El correo de jefe
+  // y responsable se busca aparte porque el proyecto solo trae su nombre; el
+  // proveedor no tiene cuenta, así que queda sin correo (se puede compartir
+  // el enlace de firma a mano).
+  const fixedParticipants = useMemo<DirectoryUser[]>(() => {
+    const fixed: DirectoryUser[] = [];
+    if (project.jefeId && project.jefeNombre) {
+      fixed.push({ id: project.jefeId, name: project.jefeNombre, email: actorEmails[project.jefeId] ?? '' });
+    }
+    if (project.responsableId && project.responsableNombre) {
+      fixed.push({ id: project.responsableId, name: project.responsableNombre, email: actorEmails[project.responsableId] ?? '' });
+    }
+    if (project.proveedorId && project.proveedor) {
+      fixed.push({ id: project.proveedorId, name: project.proveedor, email: '' });
+    }
+    return fixed;
+  }, [project.jefeId, project.jefeNombre, project.responsableId, project.responsableNombre, project.proveedorId, project.proveedor, actorEmails]);
+
+  async function openMeetingForm() {
+    const ids = [project.jefeId, project.responsableId].filter((id): id is string => !!id);
+    if (ids.length) {
+      try {
+        const profiles = await ProfilesApi.getMany(ids);
+        setActorEmails(Object.fromEntries(profiles.map((p) => [p.id, p.email])));
+      } catch {
+        setActorEmails({});
+      }
+    }
+    setNewParticipants([]);
+    setShowAddParticipant(false);
+    setShowForm(true);
+  }
+
   async function createMeeting() {
     if (!formState.date) { alert('Selecciona una fecha para la reunión.'); return; }
     const created = await MeetingsApi.create(project.id, {
       date: formState.date, time: formState.time, title: formState.title.trim(),
-      participants: newParticipants.map((u) => ({ label: u.name, email: u.email })),
+      participants: [...fixedParticipants, ...newParticipants].map((u) => ({ label: u.name, email: u.email })),
     });
+    const agenda = formState.agenda.trim();
     setShowForm(false);
     setNewParticipants([]);
-    setFormState({ date: todayISO(), time: '10:00', title: '' });
+    setFormState({ date: todayISO(), time: '10:00', title: '', agenda: '' });
     onChanged();
     setCreatingTeamsFor(created.id);
     try {
+      if (agenda) await MeetingsApi.updateDoc(created.id, { topics: agenda });
       await MeetingsApi.createTeamsMeeting(created.id);
     } catch (err) {
       alert(`La reunión quedó agendada, pero no se pudo crear el evento de Teams: ${(err as Error).message}`);
@@ -238,7 +278,7 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
         </span>
         <span className="toolbar-actions">
           {canEdit && (
-            <button className="btn small" onClick={() => setShowForm((s) => !s)}>
+            <button className="btn small" onClick={() => (showForm ? setShowForm(false) : openMeetingForm())}>
               {showForm ? 'Cancelar' : '+ Agendar reunión'}
             </button>
           )}
@@ -251,84 +291,163 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
       </div>
 
       {showForm && (
-        <div className="meeting-form">
-          <div className="field">
-            <label>Fecha</label>
-            <input
-              type="date"
-              value={formState.date}
-              onChange={(e) => setFormState({ ...formState, date: e.target.value })}
-            />
-          </div>
-          <div className="field">
-            <label>Hora</label>
-            <input
-              type="time"
-              value={formState.time}
-              onChange={(e) => setFormState({ ...formState, time: e.target.value })}
-            />
-          </div>
-          <div className="field">
-            <label>Motivo / título</label>
-            <input
-              type="text"
-              value={formState.title}
-              onChange={(e) => setFormState({ ...formState, title: e.target.value })}
-              placeholder="Ej. Revisión de avance"
-            />
-          </div>
-          <div className="field">
-            <label>Participantes</label>
-            <DirectorySearch
-              placeholder="Buscar persona en Entra ID…"
-              onSelect={(u) => {
-                if (newParticipants.some((p) => p.id === u.id)) return;
-                setNewParticipants((arr) => [...arr, u]);
-              }}
-            />
-            <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-              {newParticipants.length ? (
-                newParticipants.map((p) => (
-                  <span className="participant-chip" key={p.id}>
-                    {p.name}
-                    <button
-                      type="button"
-                      onClick={() => setNewParticipants((arr) => arr.filter((x) => x.id !== p.id))}
-                    >
-                      ×
+        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <div className="modal-kicker">Microsoft Teams</div>
+                <h2 className="modal-title">Agendar reunión</h2>
+              </div>
+              <button className="modal-close" title="Cerrar" onClick={() => setShowForm(false)}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <p className="modal-intro">
+                La reunión se agenda en Microsoft Teams y queda registrada en el calendario del
+                proyecto.
+              </p>
+              <div className="modal-fields">
+                <div className="modal-field">
+                  <label>Motivo / título</label>
+                  <input
+                    type="text"
+                    value={formState.title}
+                    onChange={(e) => setFormState({ ...formState, title: e.target.value })}
+                    placeholder="Ej. Revisión de avance"
+                  />
+                </div>
+                <div className="modal-field-grid">
+                  <div className="modal-field">
+                    <label>Fecha</label>
+                    <input
+                      type="date"
+                      value={formState.date}
+                      onChange={(e) => setFormState({ ...formState, date: e.target.value })}
+                    />
+                  </div>
+                  <div className="modal-field">
+                    <label>Hora</label>
+                    <input
+                      type="time"
+                      value={formState.time}
+                      onChange={(e) => setFormState({ ...formState, time: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="modal-field">
+                  <label>Participantes</label>
+                  <p className="modal-field-hint">Jefe del proyecto, persona asignada y proveedor.</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {fixedParticipants.map((p) => (
+                      <span className="participant-chip" key={p.id}>{p.name}</span>
+                    ))}
+                    {newParticipants.map((p) => (
+                      <span className="participant-chip" key={p.id}>
+                        {p.name}
+                        <button
+                          type="button"
+                          onClick={() => setNewParticipants((arr) => arr.filter((x) => x.id !== p.id))}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  {showAddParticipant ? (
+                    <DirectorySearch
+                      placeholder="Buscar persona en Entra ID…"
+                      onSelect={(u) => {
+                        if (newParticipants.some((p) => p.id === u.id)) return;
+                        setNewParticipants((arr) => [...arr, u]);
+                      }}
+                    />
+                  ) : (
+                    <button type="button" className="directory-manual-toggle" onClick={() => setShowAddParticipant(true)}>
+                      + Agregar participante
                     </button>
-                  </span>
-                ))
-              ) : (
-                <span className="participant-empty">Sin participantes aún</span>
-              )}
+                  )}
+                </div>
+                <div className="modal-field">
+                  <label>Agenda</label>
+                  <textarea
+                    rows={3}
+                    value={formState.agenda}
+                    onChange={(e) => setFormState({ ...formState, agenda: e.target.value })}
+                    placeholder="Puntos a tratar…"
+                  />
+                </div>
+              </div>
+              <div className="modal-info-block">
+                <span className="modal-info-icon">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+                    <rect x="2" y="6" width="14" height="12" rx="2" />
+                  </svg>
+                </span>
+                <div>
+                  <div className="stat-label">Enlace de la reunión</div>
+                  <div className="modal-info-value">Se genera en Teams al guardar</div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-foot">
+              <span className="modal-foot-hint">La invitación se envía al guardar.</span>
+              <div className="modal-foot-actions">
+                <button className="btn ghost" onClick={() => setShowForm(false)}>Cancelar</button>
+                <button className="btn" onClick={createMeeting}>Agendar en Teams</button>
+              </div>
             </div>
           </div>
-          <button className="btn small" onClick={createMeeting}>Agendar</button>
         </div>
       )}
 
       {showNoteForm && (
-        <div className="meeting-form">
-          <div className="field">
-            <label>Fecha</label>
-            <input
-              type="date"
-              value={noteForm.date}
-              onChange={(e) => setNoteForm((f) => ({ ...f, date: e.target.value }))}
-            />
+        <div className="modal-overlay" onClick={() => setShowNoteForm(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <div className="modal-kicker">Seguimiento diario</div>
+                <h2 className="modal-title">Nota de seguimiento</h2>
+              </div>
+              <button className="modal-close" title="Cerrar" onClick={() => setShowNoteForm(false)}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <p className="modal-intro">
+                La nota queda fechada en el seguimiento del proyecto y se puede eliminar en
+                cualquier momento.
+              </p>
+              <div className="modal-fields">
+                <div className="modal-field">
+                  <label>Fecha</label>
+                  <input
+                    type="date"
+                    value={noteForm.date}
+                    onChange={(e) => setNoteForm((f) => ({ ...f, date: e.target.value }))}
+                  />
+                </div>
+                <div className="modal-field">
+                  <label>Nota de seguimiento</label>
+                  <textarea
+                    value={noteForm.text}
+                    onChange={(e) => setNoteForm((f) => ({ ...f, text: e.target.value }))}
+                    placeholder="Ej. Se resolvió el bloqueo de ambiente de pruebas con el proveedor"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="modal-foot">
+              <span className="modal-foot-hint">Las notas se pueden eliminar en cualquier momento.</span>
+              <div className="modal-foot-actions">
+                <button className="btn ghost" onClick={() => setShowNoteForm(false)}>Cancelar</button>
+                <button className="btn" onClick={addDailyNote} disabled={savingNote}>
+                  {savingNote ? 'Guardando…' : 'Agregar nota'}
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="field full">
-            <label>Nota de seguimiento</label>
-            <textarea
-              value={noteForm.text}
-              onChange={(e) => setNoteForm((f) => ({ ...f, text: e.target.value }))}
-              placeholder="Ej. Se resolvió el bloqueo de ambiente de pruebas con el proveedor"
-            />
-          </div>
-          <button className="btn small" onClick={addDailyNote} disabled={savingNote}>
-            {savingNote ? 'Guardando…' : 'Agregar nota'}
-          </button>
         </div>
       )}
 
@@ -358,7 +477,11 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
                   {creatingTeamsFor === mt.id && <span className="meeting-notifying">Creando reunión de Teams…</span>}
                   {mt.teamsJoinUrl && (
                     <a className="btn small ghost" href={mt.teamsJoinUrl} target="_blank" rel="noreferrer">
-                      🎥 Unirse en Teams
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: '-2px', marginRight: 5 }}>
+                        <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+                        <rect x="2" y="6" width="14" height="12" rx="2" />
+                      </svg>
+                      Unirse en Teams
                     </a>
                   )}
                   <button

@@ -89,9 +89,9 @@ export const ProjectsApi = {
     return normalizeProject(data);
   },
 
-  async create(payload: { name: string }): Promise<{ id: string }> {
+  async create(payload: { name: string; proveedor: string }): Promise<{ id: string }> {
     const res = await supabase.rpc('create_project', {
-      p_name: payload.name, p_proveedor: null,
+      p_name: payload.name, p_proveedor: payload.proveedor,
     });
     return throwIfError<{ id: string }>(res as any);
   },
@@ -415,17 +415,19 @@ export interface AdminCreatedUser {
   emailError?: string;
 }
 
-// Crea/edita/borra cuentas de "Persona asignada" (desarrollador) y "Proveedor"
-// (cliente) sin pasar por el signUp público (que exige confirmar por correo).
-// Llama a la Edge Function admin-manage-user, que usa la Admin API de
-// Supabase Auth con la service_role key -- por eso no se puede hacer desde
-// aquí directo con el cliente normal.
+// Crea/edita/borra cuentas de "Persona asignada" (desarrollador) y, si quien
+// llama es superadmin, también cuentas admin ("Jefe de proyecto") -- sin
+// pasar por el signUp público (que exige confirmar por correo). Llama a la
+// Edge Function admin-manage-user, que usa la Admin API de Supabase Auth con
+// la service_role key -- por eso no se puede hacer desde aquí directo con el
+// cliente normal. Esa función debe validar aparte que solo superadmin puede
+// crear role:'admin'.
 export const UsersAdminApi = {
-  async list(role: 'desarrollador' | 'cliente'): Promise<ProfileLite[]> {
+  async list(role: 'admin' | 'desarrollador' | 'cliente'): Promise<ProfileLite[]> {
     return ProfilesApi.searchByRole(role, '', 200);
   },
 
-  async create(payload: { email: string; fullName: string; role: 'desarrollador' | 'cliente' }): Promise<AdminCreatedUser> {
+  async create(payload: { email: string; fullName: string; role: 'admin' | 'desarrollador' | 'cliente' }): Promise<AdminCreatedUser> {
     const { data, error } = await supabase.functions.invoke<AdminCreatedUser>('admin-manage-user', {
       body: { action: 'create', email: payload.email, fullName: payload.fullName, role: payload.role },
     });

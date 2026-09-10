@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'desarrollador' | 'cliente';
+export type UserRole = 'superadmin' | 'admin' | 'desarrollador' | 'cliente';
 export type ProjectStatus = 'levantamiento' | 'desarrollo' | 'validacion' | 'cerrado';
 export type ItemResponsible = 'cliente' | 'desarrollador';
 export type MeetingState = 'programada' | 'reprogramada' | 'realizada' | 'no_realizada';
@@ -22,6 +22,7 @@ export interface ProfileLite {
 }
 
 export const ACTOR_ROLE_LABEL: Record<UserRole, string> = {
+  superadmin: 'Superadmin',
   admin: 'Jefe de proyecto',
   desarrollador: 'Persona asignada',
   cliente: 'Proveedor',

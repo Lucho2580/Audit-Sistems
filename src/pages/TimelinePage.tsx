@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppShell from '../components/AppShell';
+import { useSidebarStats } from '../context/ShellChromeContext';
 import { AuditApi } from '../lib/services';
 import type { AuditLogEntry } from '../types/domain';
 
@@ -52,6 +53,22 @@ export default function TimelinePage() {
     return map;
   }, [entries]);
 
+  useSidebarStats(
+    useMemo(() => {
+      const todayStr = isoDate(new Date().toISOString());
+      const projectsWithActivity = new Set(entries.map((e) => e.projectId).filter(Boolean)).size;
+      const todayCount = entries.filter((e) => isoDate(e.createdAt) === todayStr).length;
+      return {
+        title: 'Actividad',
+        items: [
+          { label: 'Movimientos', value: String(entries.length), note: 'en el historial' },
+          { label: 'Hoy', value: String(todayCount), note: 'movimientos' },
+          { label: 'Proyectos', value: String(projectsWithActivity), note: 'con actividad' },
+        ],
+      };
+    }, [entries]),
+  );
+
   const y = calMonth.getFullYear();
   const m = calMonth.getMonth();
   const totalDays = new Date(y, m + 1, 0).getDate();
@@ -76,11 +93,11 @@ export default function TimelinePage() {
         <div>
           <p className="eyebrow">Actividad global</p>
           <h1>Línea de tiempo</h1>
-          <p className="sub">
-            Calendario y línea de tiempo de la actividad registrada en todos los proyectos, a
-            partir del historial de auditoría.
-          </p>
         </div>
+        <p className="intro">
+          Calendario y línea de tiempo de la actividad registrada en todos los proyectos, a partir
+          del historial de auditoría.
+        </p>
       </div>
 
       <div className="toolbar">
