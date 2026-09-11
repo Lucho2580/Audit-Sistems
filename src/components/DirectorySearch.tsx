@@ -4,9 +4,19 @@ import { DirectoryApi, type DirectoryUser } from '../lib/services';
 interface Props {
   onSelect: (user: DirectoryUser) => void;
   placeholder?: string;
+  /** Rol que tendrá la persona al agregarla (ej. "Invitado", "Cliente"). Se muestra antes de seleccionar. */
+  roleLabel?: string;
 }
 
-export default function DirectorySearch({ onSelect, placeholder }: Props) {
+export function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  const first = parts[0][0] ?? '';
+  const last = parts.length > 1 ? parts[parts.length - 1][0] ?? '' : '';
+  return (first + last).toUpperCase();
+}
+
+export default function DirectorySearch({ onSelect, placeholder, roleLabel }: Props) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<DirectoryUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -89,6 +99,11 @@ export default function DirectorySearch({ onSelect, placeholder }: Props) {
       {error && <div className="directory-search-hint error">{error}</div>}
       {open && results.length > 0 && (
         <div className="directory-search-results">
+          {roleLabel && (
+            <div className="directory-search-role-hint">
+              Se agregará como <span className="directory-search-role-badge">{roleLabel}</span>
+            </div>
+          )}
           {results.map((u) => (
             <button
               type="button"
@@ -102,8 +117,11 @@ export default function DirectorySearch({ onSelect, placeholder }: Props) {
                 setOpen(false);
               }}
             >
-              <span className="name">{u.name}</span>
-              <span className="email">{u.email}</span>
+              <span className="ds-avatar">{initials(u.name)}</span>
+              <span className="ds-result-info">
+                <span className="name">{u.name}</span>
+                <span className="email">{u.email}</span>
+              </span>
             </button>
           ))}
         </div>

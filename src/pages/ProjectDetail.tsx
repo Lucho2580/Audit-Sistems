@@ -93,7 +93,11 @@ export default function ProjectDetail() {
         <div>
           <p className="eyebrow">{project.code}</p>
           <h1>{project.name}</h1>
-          <p className="sub">Proveedor: {project.proveedor}</p>
+          <p className="sub">
+            {project.clientes.length > 1 ? 'Clientes' : 'Cliente'}:{' '}
+            {project.clientes.length ? project.clientes.map((c) => c.nombre).join(', ') : 'Sin asignar'}
+            {' · '}Proveedor: {project.proveedor}
+          </p>
         </div>
         <div className="status-select-wrap">
           <label>Estado del proyecto</label>
@@ -159,6 +163,7 @@ export default function ProjectDetail() {
         meetings={meetings}
         dailyNotes={dailyNotes}
         canEdit={canEdit}
+        canRegisterMeeting={canEditPercent}
         onChanged={load}
       />
 

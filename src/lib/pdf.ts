@@ -105,41 +105,6 @@ function pdfChecklistWithLog(doc: jsPDF, y: number, sec: Section) {
   });
   return y;
 }
-function pdfSignatureBlock(doc: jsPDF, y: number, participants: Meeting['participants']) {
-  y = pdfSectionTitle(doc, y, 'Firmas de los participantes');
-  let list = Array.isArray(participants) ? participants.filter(Boolean) : [];
-  if (!list.length) list = [{ id: '1', label: 'Participante 1', email: null, signature: null, signedAt: null }];
-  const gap = 24, colW = (CONTENT_W - gap) / 2, rowH = 88;
-  let col = 0;
-  list.forEach((p) => {
-    if (col === 0) y = pdfCheckPage(doc, y, rowH);
-    const x = MARGIN + col * (colW + gap);
-    if (p.signature && p.signature.startsWith('data:image')) {
-      try { doc.addImage(p.signature, 'PNG', x, y + 2, Math.min(colW * 0.6, 160), 22); } catch { /* imagen inválida */ }
-    } else if (p.signature) {
-      doc.setFont('times', 'bolditalic'); doc.setFontSize(16); doc.setTextColor(...PDF_C.ink);
-      doc.text(p.signature, x, y + 18);
-    } else {
-      doc.setFont('helvetica', 'italic'); doc.setFontSize(8); doc.setTextColor(...PDF_C.slate);
-      doc.text('Pendiente de firma', x, y + 18);
-    }
-    doc.setDrawColor(...PDF_C.ink); doc.setLineWidth(0.6);
-    doc.line(x, y + 26, x + colW, y + 26);
-    const infoLines = p.label.includes(' — ') ? p.label.split(' — ') : [p.label];
-    let ty = y + 40;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...PDF_C.ink);
-    infoLines.forEach((line) => { doc.text(line, x, ty); ty += 12; });
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...PDF_C.slate);
-    doc.text(
-      p.signedAt ? `Firmado el ${new Date(p.signedAt).toLocaleString('es-ES')}` : 'Firma y fecha',
-      x, ty + 2,
-    );
-    col = col === 0 ? 1 : 0;
-    if (col === 0) y += rowH;
-  });
-  if (col !== 0) y += rowH;
-  return y + 8;
-}
 function pdfFooterAll(doc: jsPDF) {
   const n = doc.internal.pages.length - 1;
   for (let i = 1; i <= n; i++) {
@@ -148,31 +113,6 @@ function pdfFooterAll(doc: jsPDF) {
     doc.text(`Sistema de auditoría de desarrollo · Generado el ${nowStr()}`, MARGIN, PAGE_H - 30);
     doc.text(`Página ${i} de ${n}`, PAGE_W - MARGIN - 70, PAGE_H - 30);
   }
-}
-
-export function generateMeetingMinutesPdf(project: Project, mt: Meeting) {
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  const isActa = mt.state === 'realizada';
-  const docLabel = isActa ? 'Acta de reunión técnica' : 'Minuta de reunión técnica (borrador)';
-  let y = pdfHeader(doc, `${project.code} · ${docLabel}`, mt.title || 'Reunión de seguimiento', [
-    `Proyecto: ${project.name}   ·   Proveedor: ${project.proveedor}`,
-    `Fecha: ${mt.date}    Hora: ${mt.time || '—'}    Estado: ${MEETING_STATE_META[mt.state]}`,
-    `Participantes: ${mt.participants.length ? mt.participants.map((p) => p.label).join(', ') : '—'}`,
-  ]);
-  y = pdfSectionTitle(doc, y, 'Temas tratados'); y = pdfParagraph(doc, y, mt.topics);
-  y = pdfSectionTitle(doc, y, 'Acuerdos y compromisos'); y = pdfParagraph(doc, y, mt.agreements);
-  y = pdfSectionTitle(doc, y, 'Riesgos u observaciones'); y = pdfParagraph(doc, y, mt.risks);
-  y = pdfSectionTitle(doc, y, 'Próximos pasos'); y = pdfParagraph(doc, y, mt.nextSteps);
-  if (isActa) {
-    y = pdfSignatureBlock(doc, y, mt.participants);
-  } else {
-    y = pdfParagraph(
-      doc, y,
-      'Este documento es una minuta preliminar. Cuando la reunión se marque como "Realizada", el PDF se generará como acta formal con espacio para firmas.',
-    );
-  }
-  pdfFooterAll(doc);
-  doc.save(`${isActa ? 'acta' : 'minuta'}_${project.code}_${mt.date}.pdf`);
 }
 
 export function generateProjectReportPdf(project: Project, meetings: Meeting[]) {
@@ -220,45 +160,3 @@ export function generateProjectReportPdf(project: Project, meetings: Meeting[]) 
   doc.save(`informe_${project.code}.pdf`);
 }
 
-export function generateGlobalReportPdf(projects: Project[]) {
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  const avg = projects.length
-    ? Math.round(projects.reduce((a, p) => a + (p.stats?.pct ?? 0), 0) / projects.length)
-    : 0;
-  let y = pdfHeader(doc, 'Sistema de auditoría de desarrollo', 'Reporte general de proyectos', [
-    `Proyectos totales: ${projects.length}   ·   Activos: ${projects.filter((p) => p.status !== 'cerrado').length}   ·   Cerrados: ${projects.filter((p) => p.status === 'cerrado').length}   ·   Avance promedio: ${avg}%`,
-  ]);
-
-  y = pdfSectionTitle(doc, y, 'Resumen de proyectos');
-  const headers = ['Código', 'Proyecto', 'Proveedor', 'Estado', 'Avance'];
-  const colX = [MARGIN, MARGIN + 60, MARGIN + 220, MARGIN + 340, MARGIN + 440];
-  y = pdfTableHeader(doc, y, headers, colX);
-  projects.forEach((p, i) => {
-    y = pdfTableRow(
-      doc, y,
-      [p.code, trunc(p.name, 26), trunc(p.proveedor, 20), STATUS_META[p.status], (p.stats?.pct ?? 0) + '%'],
-      colX, i % 2 === 1,
-    );
-  });
-
-  y += 10;
-  y = pdfSectionTitle(doc, y, 'Detalle por fase (ficha técnica / flujo de procesos / manual de usuario)');
-  const headers2 = ['Proyecto', 'Ficha técnica', 'Flujo de procesos', 'Manual de usuario'];
-  const colX2 = [MARGIN, MARGIN + 110, MARGIN + 230, MARGIN + 350];
-  y = pdfTableHeader(doc, y, headers2, colX2);
-  projects.forEach((p, i) => {
-    const pctOf = (key: string) => {
-      const sec = p.sections.find((s) => s.key === key);
-      if (!sec || !sec.items.length) return '—';
-      return Math.round(sec.items.reduce((a, it) => a + it.percent, 0) / sec.items.length) + '%';
-    };
-    y = pdfTableRow(
-      doc, y,
-      [trunc(p.name, 20), pctOf('ficha'), pctOf('flujo'), pctOf('manual')],
-      colX2, i % 2 === 1,
-    );
-  });
-
-  pdfFooterAll(doc);
-  doc.save('reporte_general_auditoria.pdf');
-}

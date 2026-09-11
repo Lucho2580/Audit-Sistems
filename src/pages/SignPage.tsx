@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { MeetingsApi } from '../lib/services';
+import { MeetingsApi, type SignStatus } from '../lib/services';
 
 export default function SignPage() {
   const { token } = useParams<{ token: string }>();
@@ -10,16 +10,16 @@ export default function SignPage() {
   const [error, setError] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(true);
-  const [alreadySigned, setAlreadySigned] = useState(false);
+  const [status, setStatus] = useState<SignStatus | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
 
   useEffect(() => {
     if (!token) return;
     MeetingsApi.getSignStatus(token)
-      .then((status) => {
-        if (!status) { setLinkError('El enlace de firma no es válido o ya expiró.'); return; }
-        if (status.alreadySigned) setAlreadySigned(true);
+      .then((s) => {
+        if (!s) { setLinkError('El enlace de firma no es válido o ya expiró.'); return; }
+        setStatus(s);
       })
       .catch(() => setLinkError('El enlace de firma no es válido o ya expiró.'))
       .finally(() => setCheckingStatus(false));
@@ -63,14 +63,50 @@ export default function SignPage() {
     try {
       await MeetingsApi.signByToken(token, signature);
       setDone(true);
+      MeetingsApi.notifySignatureCompleted(token).catch(() => {
+        // No es crítico: la firma ya quedó registrada de todos modos.
+      });
     } catch (err) {
       const msg = (err as Error).message;
       if (msg && msg.includes('ya fue firmado')) {
-        setAlreadySigned(true);
+        setStatus((s) => (s ? { ...s, alreadySigned: true } : s));
+      } else if (msg && msg.includes('caducó')) {
+        setStatus((s) => (s ? { ...s, expired: true } : s));
       } else {
         setError(msg || 'El enlace de firma no es válido o ya expiró.');
       }
     }
+  }
+
+  // Contenido del acta -- para que quien firma sepa exactamente qué está
+  // aprobando, no un formulario a ciegas.
+  function DocumentPreview() {
+    if (!status) return null;
+    const rows: [string, string][] = [
+      ['Temas tratados', status.topics],
+      ['Acuerdos y compromisos', status.agreements],
+      ['Riesgos u observaciones', status.risks],
+      ['Próximos pasos', status.nextSteps],
+    ];
+    return (
+      <div className="sign-document">
+        <div className="sign-document-head">
+          <span className="hu-tag">Doc</span>
+          <div>
+            <div className="sign-document-title">{status.meetingTitle || 'Reunión de seguimiento'}</div>
+            <div className="sign-document-meta">
+              {status.projectCode} · {status.projectName} · {status.meetingDate}
+            </div>
+          </div>
+        </div>
+        {rows.map(([label, value]) => (
+          <div className="sign-document-field" key={label}>
+            <div className="sign-document-label">{label}</div>
+            <p>{value?.trim() || 'Sin registrar.'}</p>
+          </div>
+        ))}
+      </div>
+    );
   }
 
   return (
@@ -85,7 +121,7 @@ export default function SignPage() {
         <div>
           <p className="eyebrow">Firma digital de acta</p>
           <h1>Confirmar participación</h1>
-          <p className="sub">Firma este documento para confirmar tu asistencia y los acuerdos registrados.</p>
+          <p className="sub">Revisa el acta y firma para confirmar tu asistencia y los acuerdos registrados.</p>
         </div>
       </div>
 
@@ -98,18 +134,28 @@ export default function SignPage() {
               <div className="check">✓</div>
               <p>Tu firma fue registrada correctamente. Ya puedes cerrar esta ventana.</p>
             </div>
-          ) : alreadySigned ? (
-            <div className="sign-success">
-              <div className="check">✓</div>
-              <p>Este documento ya fue firmado anteriormente. No es necesario firmar de nuevo.</p>
-            </div>
           ) : linkError ? (
             <div className="auth-error">{linkError}</div>
+          ) : status?.alreadySigned ? (
+            <>
+              <DocumentPreview />
+              <div className="sign-success">
+                <div className="check">✓</div>
+                <p>Este documento ya fue firmado anteriormente. No es necesario firmar de nuevo.</p>
+              </div>
+            </>
+          ) : status?.expired ? (
+            <>
+              <DocumentPreview />
+              <div className="auth-error">
+                Este enlace de firma ya caducó (30 días desde la reunión). Pide que te reenvíen uno nuevo.
+              </div>
+            </>
           ) : (
             <>
+              <DocumentPreview />
               <div className="sign-info">
-                Al firmar, confirmas tu participación en la reunión y los acuerdos documentados por el
-                equipo del proyecto.
+                Al firmar, confirmas tu participación en la reunión y los acuerdos documentados arriba.
               </div>
               {error && <div className="auth-error">{error}</div>}
               <div className="sign-tabs">

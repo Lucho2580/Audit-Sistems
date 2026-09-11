@@ -22,13 +22,15 @@ function ShellSidebar() {
 
       <nav className="shell-nav">
         <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
-          <span>Proyectos</span>
+          <span>{profile?.role === 'cliente' ? 'Mis actas' : 'Proyectos'}</span>
           <span className="mark">·</span>
         </NavLink>
-        <NavLink to="/timeline" className={({ isActive }) => (isActive ? 'active' : '')}>
-          <span>Línea de tiempo</span>
-          <span className="mark">·</span>
-        </NavLink>
+        {profile?.role !== 'cliente' && (
+          <NavLink to="/timeline" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <span>Línea de tiempo</span>
+            <span className="mark">·</span>
+          </NavLink>
+        )}
         {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
           <NavLink to="/tools" className={({ isActive }) => (isActive ? 'active' : '')}>
             <span>Herramientas</span>

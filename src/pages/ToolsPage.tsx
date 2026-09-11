@@ -3,11 +3,11 @@ import { Navigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import DirectorySearch from '../components/DirectorySearch';
 import { useSidebarStats } from '../context/ShellChromeContext';
-import { UsersAdminApi, ProvidersApi, type DirectoryUser } from '../lib/services';
-import { ACTOR_ROLE_LABEL, type ProfileLite, type Provider } from '../types/domain';
+import { UsersAdminApi, type DirectoryUser } from '../lib/services';
+import { ACTOR_ROLE_LABEL, type ProfileLite } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
 
-type ManagedRole = 'desarrollador' | 'admin';
+type ManagedRole = 'desarrollador' | 'admin' | 'cliente';
 
 const ROLE_META: Record<ManagedRole, { code: string; title: string; hint: string; kicker: string; modalTitle: string }> = {
   desarrollador: {
@@ -23,6 +23,13 @@ const ROLE_META: Record<ManagedRole, { code: string; title: string; hint: string
     hint: 'Cuentas con acceso completo a todos los proyectos (crear, editar, cerrar). No pueden crear otras cuentas de jefe de proyecto -- eso es exclusivo del superadmin.',
     kicker: 'Jefes de proyecto',
     modalTitle: 'Crear cuenta de jefe de proyecto',
+  },
+  cliente: {
+    code: 'CLI',
+    title: 'Clientes',
+    hint: 'Cuentas que se pueden elegir como "Cliente" al crear un proyecto. Solo ven sus propios proyectos: las actas pendientes/firmadas, su estado y contenido -- nada más del sistema.',
+    kicker: 'Clientes',
+    modalTitle: 'Crear cuenta de cliente',
   },
 };
 
@@ -169,6 +176,7 @@ function UserRoleSection({ role, onStats }: { role: ManagedRole; onStats?: (s: {
                   <label>Persona</label>
                   <DirectorySearch
                     placeholder="Buscar persona en Entra ID…"
+                    roleLabel={ACTOR_ROLE_LABEL[role]}
                     onSelect={(u: DirectoryUser) => setForm({ fullName: u.name, email: u.email })}
                   />
                 </div>
@@ -249,188 +257,12 @@ function UserRoleSection({ role, onStats }: { role: ManagedRole; onStats?: (s: {
   );
 }
 
-// Los proveedores son solo un registro de nombre (public.providers) -- a
-// diferencia de las personas asignadas, no tienen cuenta ni acceso de login
-// a la app; solo se agregan a la lista para poder elegirlos al crear un
-// proyecto.
-function ProviderSection({ onStats }: { onStats?: (count: number) => void }) {
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<Record<string, string>>({});
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  async function load() {
-    setLoading(true);
-    try {
-      setProviders(await ProvidersApi.list());
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    onStats?.(providers.length);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [providers]);
-
-  async function createProvider() {
-    const name = newName.trim();
-    if (!name) {
-      alert('Escribe el nombre del proveedor.');
-      return;
-    }
-    setCreating(true);
-    try {
-      await ProvidersApi.create(name);
-      setNewName('');
-      setShowForm(false);
-      load();
-    } catch (err) {
-      alert(`No se pudo crear el proveedor: ${(err as Error).message}`);
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function saveRename(p: Provider) {
-    const name = (editing[p.id] ?? p.name).trim();
-    if (!name || name === p.name) return;
-    setBusyId(p.id);
-    try {
-      await ProvidersApi.rename(p.id, name);
-      load();
-    } catch (err) {
-      alert(`No se pudo renombrar: ${(err as Error).message}`);
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function removeProvider(p: Provider) {
-    if (!confirm(`¿Eliminar el proveedor "${p.name}"? Esta acción no se puede deshacer.`)) return;
-    setBusyId(p.id);
-    try {
-      await ProvidersApi.remove(p.id);
-      load();
-    } catch (err) {
-      alert(`No se pudo eliminar el proveedor: ${(err as Error).message}`);
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  return (
-    <div className="section">
-      <div className="section-head">
-        <div className="title-block">
-          <span className="code-tag">PRV</span>
-          <h2>Proveedores</h2>
-        </div>
-        <button className="btn small" onClick={() => setShowForm((s) => !s)}>
-          {showForm ? 'Cancelar' : '+ Nuevo proveedor'}
-        </button>
-      </div>
-      <p className="admin-hint">
-        Proveedores que se pueden elegir al crear un proyecto. Solo quedan registrados por nombre —
-        no tienen cuenta ni acceso a esta aplicación.
-      </p>
-
-      {showForm && (
-        <div className="modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <div>
-                <div className="modal-kicker">Proveedores</div>
-                <h2 className="modal-title">Crear proveedor</h2>
-              </div>
-              <button className="modal-close" title="Cerrar" onClick={() => setShowForm(false)}>
-                ×
-              </button>
-            </div>
-            <div className="modal-body">
-              <p className="modal-intro">
-                El proveedor queda disponible al crear un proyecto. No tiene cuenta ni acceso a la
-                aplicación.
-              </p>
-              <div className="modal-fields">
-                <div className="modal-field">
-                  <label>Nombre del proveedor</label>
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && createProvider()}
-                    placeholder="Ej. Nexura S.A.S."
-                    autoFocus
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="modal-foot">
-              <span className="modal-foot-hint">Sin acceso a la aplicación.</span>
-              <div className="modal-foot-actions">
-                <button className="btn ghost" onClick={() => setShowForm(false)}>Cancelar</button>
-                <button className="btn" onClick={createProvider} disabled={creating || !newName.trim()}>
-                  {creating ? 'Creando…' : 'Crear proveedor'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="empty-state">Cargando…</div>
-      ) : providers.length === 0 ? (
-        <div className="empty-state">No hay proveedores registrados todavía.</div>
-      ) : (
-        <div>
-          {providers.map((p, idx) => (
-            <div className="account-row" key={p.id}>
-              <div className="account-main">
-                <div className="account-code">PRV-{String(idx + 1).padStart(2, '0')}</div>
-                <input
-                  type="text"
-                  value={editing[p.id] ?? p.name}
-                  onChange={(e) => setEditing((s) => ({ ...s, [p.id]: e.target.value }))}
-                  onBlur={() => saveRename(p)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                  className="account-name-input"
-                  disabled={busyId === p.id}
-                />
-              </div>
-              <div className="account-side">
-                <button
-                  className="del-btn"
-                  title="Eliminar proveedor"
-                  onClick={() => removeProvider(p)}
-                  disabled={busyId === p.id}
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function ToolsPage() {
   const { profile } = useAuth();
   const isSuperadmin = profile?.role === 'superadmin';
   const [devStats, setDevStats] = useState({ count: 0, confirmed: 0 });
   const [adminStats, setAdminStats] = useState({ count: 0, confirmed: 0 });
-  const [providerCount, setProviderCount] = useState(0);
+  const [clienteStats, setClienteStats] = useState({ count: 0, confirmed: 0 });
 
   useSidebarStats(
     useMemo(
@@ -439,11 +271,15 @@ export default function ToolsPage() {
         items: [
           ...(isSuperadmin ? [{ label: 'Jefes de proyecto', value: String(adminStats.count), note: 'con acceso total' }] : []),
           { label: 'Personas asignadas', value: String(devStats.count), note: 'responsables' },
-          { label: 'Proveedores', value: String(providerCount), note: 'registrados' },
-          { label: 'Confirmadas', value: String(devStats.confirmed + (isSuperadmin ? adminStats.confirmed : 0)), note: 'con acceso' },
+          { label: 'Clientes', value: String(clienteStats.count), note: 'con portal de firma' },
+          {
+            label: 'Confirmadas',
+            value: String(devStats.confirmed + clienteStats.confirmed + (isSuperadmin ? adminStats.confirmed : 0)),
+            note: 'con acceso',
+          },
         ],
       }),
-      [devStats, adminStats, providerCount, isSuperadmin],
+      [devStats, adminStats, clienteStats, isSuperadmin],
     ),
   );
 
@@ -459,15 +295,15 @@ export default function ToolsPage() {
           <h1>Usuarios</h1>
         </div>
         <p className="intro">
-          Crea y administra las cuentas que se pueden asignar como responsable al crear un proyecto,
-          y los proveedores disponibles para elegir (solo por nombre, sin acceso a la aplicación).
+          Crea y administra las cuentas que se pueden asignar como responsable o cliente al crear un
+          proyecto.
           {isSuperadmin && ' Como superadmin, también puedes crear cuentas de jefe de proyecto.'}
         </p>
       </div>
 
       {isSuperadmin && <UserRoleSection role="admin" onStats={setAdminStats} />}
       <UserRoleSection role="desarrollador" onStats={setDevStats} />
-      <ProviderSection onStats={setProviderCount} />
+      <UserRoleSection role="cliente" onStats={setClienteStats} />
     </AppShell>
   );
 }

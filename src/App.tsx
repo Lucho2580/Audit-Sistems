@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
 import ProjectsList from './pages/ProjectsList';
 import ProjectDetail from './pages/ProjectDetail';
+import ClientPortal from './pages/ClientPortal';
 import SignPage from './pages/SignPage';
 import TimelinePage from './pages/TimelinePage';
 import ToolsPage from './pages/ToolsPage';
@@ -17,6 +18,20 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// El cliente solo tiene su portal (lista de actas de sus proyectos) -- el
+// resto de rutas privadas son de staff (jefe/persona asignada/admin) y no
+// tienen sentido para su rol, aparte de que RLS ya le filtra los datos.
+function StaffOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { profile } = useAuth();
+  if (profile?.role === 'cliente') return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
+function HomeRoute() {
+  const { profile } = useAuth();
+  return profile?.role === 'cliente' ? <ClientPortal /> : <ProjectsList />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -28,7 +43,7 @@ export default function App() {
         path="/"
         element={
           <PrivateRoute>
-            <ProjectsList />
+            <HomeRoute />
           </PrivateRoute>
         }
       />
@@ -36,7 +51,9 @@ export default function App() {
         path="/projects/:id"
         element={
           <PrivateRoute>
-            <ProjectDetail />
+            <StaffOnlyRoute>
+              <ProjectDetail />
+            </StaffOnlyRoute>
           </PrivateRoute>
         }
       />
@@ -44,7 +61,9 @@ export default function App() {
         path="/timeline"
         element={
           <PrivateRoute>
-            <TimelinePage />
+            <StaffOnlyRoute>
+              <TimelinePage />
+            </StaffOnlyRoute>
           </PrivateRoute>
         }
       />
@@ -52,7 +71,9 @@ export default function App() {
         path="/tools"
         element={
           <PrivateRoute>
-            <ToolsPage />
+            <StaffOnlyRoute>
+              <ToolsPage />
+            </StaffOnlyRoute>
           </PrivateRoute>
         }
       />

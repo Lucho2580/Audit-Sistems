@@ -21,11 +21,16 @@ export interface ProfileLite {
   mustChangePassword?: boolean;
 }
 
+export interface ProjectClient {
+  id: string;
+  nombre: string;
+}
+
 export const ACTOR_ROLE_LABEL: Record<UserRole, string> = {
   superadmin: 'Superadmin',
   admin: 'Jefe de proyecto',
   desarrollador: 'Persona asignada',
-  cliente: 'Proveedor',
+  cliente: 'Cliente',
 };
 
 export interface ItemLog {
@@ -80,6 +85,7 @@ export interface Project {
   responsableId: string | null;
   responsableNombre: string | null;
   proveedorId: string | null;
+  clientes: ProjectClient[];
 }
 
 export interface DailyNote {
@@ -135,6 +141,7 @@ export interface Meeting {
   participants: Participant[];
   projectId: string;
   teamsJoinUrl: string | null;
+  modalidad: string;
 }
 
 export interface AuditLogEntry {
@@ -173,7 +180,6 @@ export function bandOf(p: number): 'pendiente' | 'progreso' | 'completo' {
   return p === 0 ? 'pendiente' : p === 100 ? 'completo' : 'progreso';
 }
 
-// Fecha de fin calculada de una fase del roadmap (inicio + duración).
 export function phaseEndDate(phase: Pick<ProjectPhase, 'startDate' | 'durationDays'> | undefined | null): string | null {
   if (!phase?.startDate) return null;
   const d = new Date(phase.startDate + 'T00:00:00');
@@ -181,7 +187,7 @@ export function phaseEndDate(phase: Pick<ProjectPhase, 'startDate' | 'durationDa
   return d.toISOString().slice(0, 10);
 }
 
-// Diferencia en días entre dos fechas ISO (b - a). Positivo si b es posterior a a.
+// Positivo si b es posterior a a (resta b - a, no a - b).
 export function daysBetween(a: string, b: string): number {
   const d1 = new Date(a + 'T00:00:00');
   const d2 = new Date(b + 'T00:00:00');

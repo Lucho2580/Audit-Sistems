@@ -13,6 +13,7 @@ const PROJECT_SELECT = `
   jefeId:jefe_id, jefeNombre:jefe_nombre,
   responsableId:responsable_id, responsableNombre:responsable_nombre,
   proveedorId:proveedor_id,
+  clientes:project_clients ( id:cliente_id, nombre:cliente_nombre ),
   sections (
     id, key, code, title, notes, orderIndex:order_index,
     items:checklist_items (
@@ -28,7 +29,7 @@ const PROJECT_SELECT = `
 // por uno y solo bajo demanda, con MeetingsApi.getSignLink().
 const MEETING_SELECT = `
   id, date, time, title, state, topics, agreements, risks, nextSteps:next_steps, projectId:project_id,
-  teamsJoinUrl:teams_join_url,
+  teamsJoinUrl:teams_join_url, modalidad,
   participants ( id, label, email, signature, signedAt:signed_at )
 `;
 
@@ -97,9 +98,10 @@ export const ProjectsApi = {
     return throwIfError<{ id: string }>(res as any);
   },
 
-  // Asigna/reasigna los 3 actores del proyecto (jefe/responsable/proveedor).
-  // Se llama justo después de create() -- mismo patrón de dos pasos que ya usa
-  // MeetingsApi.create() -> createTeamsMeeting().
+  // Asigna/reasigna jefe/responsable/proveedor. Se llama justo después de
+  // create() -- mismo patrón de dos pasos que ya usa MeetingsApi.create() ->
+  // createTeamsMeeting(). Los clientes (puede haber varios) se manejan
+  // aparte con addClient()/removeClient().
   async setActors(
     projectId: string,
     payload: { jefeId: string; responsableId: string; proveedorId: string },
@@ -110,6 +112,16 @@ export const ProjectsApi = {
       p_responsable_id: payload.responsableId,
       p_proveedor_id: payload.proveedorId,
     });
+    throwIfError(res as any);
+  },
+
+  async addClient(projectId: string, clienteId: string): Promise<void> {
+    const res = await supabase.rpc('add_project_client', { p_project_id: projectId, p_cliente_id: clienteId });
+    throwIfError(res as any);
+  },
+
+  async removeClient(projectId: string, clienteId: string): Promise<void> {
+    const res = await supabase.rpc('remove_project_client', { p_project_id: projectId, p_cliente_id: clienteId });
     throwIfError(res as any);
   },
 
@@ -140,11 +152,6 @@ export const ProjectsApi = {
       p_final_observation: payload.finalObservation,
     });
     throwIfError(res as any);
-  },
-
-  async addSection(projectId: string, payload: { key: string; code: string; title: string }) {
-    const res = await supabase.from('sections').insert({ ...payload, project_id: projectId }).select().single();
-    return throwIfError(res as any);
   },
 
   async updateSectionNotes(sectionId: string, notes: string) {
@@ -191,6 +198,20 @@ export const ProjectsApi = {
   },
 };
 
+export interface SignStatus {
+  label: string;
+  alreadySigned: boolean;
+  expired: boolean;
+  projectName: string;
+  projectCode: string;
+  meetingTitle: string;
+  meetingDate: string;
+  topics: string;
+  agreements: string;
+  risks: string;
+  nextSteps: string;
+}
+
 export const MeetingsApi = {
   async listByProject(projectId: string): Promise<Meeting[]> {
     const res = await supabase
@@ -207,11 +228,13 @@ export const MeetingsApi = {
     payload: {
       date: string; time: string; title: string;
       participants: { label: string; email: string }[];
+      modalidad?: string;
     },
   ): Promise<{ id: string }> {
     const res = await supabase.rpc('create_meeting', {
       p_project_id: projectId, p_date: payload.date, p_time: payload.time,
       p_title: payload.title, p_participants: payload.participants,
+      p_modalidad: payload.modalidad ?? 'Microsoft Teams',
     });
     return throwIfError<{ id: string }>(res as any);
   },
@@ -264,11 +287,34 @@ export const MeetingsApi = {
     return throwIfError(res as any);
   },
 
-  async getSignStatus(signToken: string): Promise<{ label: string; alreadySigned: boolean } | null> {
+  // Avisa a la persona asignada del proyecto que alguien ya firmó -- se
+  // llama justo después de signByToken() desde SignPage.tsx. Es una función
+  // pública (identifica al firmante por el mismo token de firma, no por
+  // sesión), así que un fallo no debe romper la confirmación de firma que ya
+  // ves en pantalla.
+  async notifySignatureCompleted(signToken: string): Promise<void> {
+    await supabase.functions.invoke('notify-signature', { body: { token: signToken } });
+  },
+
+  // El token trae el contenido del acta (no solo label/already_signed) para
+  // que quien va a firmar pueda leer el documento antes de hacerlo, en vez
+  // de un formulario ciego.
+  async getSignStatus(signToken: string): Promise<SignStatus | null> {
     const res = await supabase.rpc('get_sign_status', { p_token: signToken });
-    const rows = throwIfError<{ label: string; already_signed: boolean }[]>(res as any);
+    const rows = throwIfError<{
+      label: string; already_signed: boolean; expired: boolean;
+      project_name: string; project_code: string;
+      meeting_title: string; meeting_date: string;
+      topics: string; agreements: string; risks: string; next_steps: string;
+    }[]>(res as any);
     const row = rows?.[0];
-    return row ? { label: row.label, alreadySigned: row.already_signed } : null;
+    if (!row) return null;
+    return {
+      label: row.label, alreadySigned: row.already_signed, expired: row.expired,
+      projectName: row.project_name, projectCode: row.project_code,
+      meetingTitle: row.meeting_title, meetingDate: row.meeting_date,
+      topics: row.topics, agreements: row.agreements, risks: row.risks, nextSteps: row.next_steps,
+    };
   },
 
   // Trae el sign_token de un solo participante bajo demanda (para el botón "copiar
@@ -277,6 +323,15 @@ export const MeetingsApi = {
   // (admin/desarrollador) sobre el proyecto de esa reunión antes de devolver el token.
   async getSignLink(participantId: string): Promise<string> {
     const res = await supabase.rpc('get_sign_link', { p_participant_id: participantId });
+    const token = throwIfError<string>(res as any);
+    return `${SITE_URL}/sign/${token}`;
+  },
+
+  // Para el portal de clientes: el propio cliente autenticado obtiene su
+  // enlace de firma por email (sin depender de get_sign_link, exclusiva de
+  // staff), validado en el servidor contra el proyecto del que es cliente.
+  async getMySignLink(meetingId: string): Promise<string> {
+    const res = await supabase.rpc('get_my_sign_link', { p_meeting_id: meetingId });
     const token = throwIfError<string>(res as any);
     return `${SITE_URL}/sign/${token}`;
   },
@@ -294,6 +349,31 @@ export const MeetingsApi = {
   async deleteMeeting(meetingId: string) {
     const res = await supabase.from('meetings').delete().eq('id', meetingId);
     throwIfError(res as any);
+  },
+};
+
+// Bucket privado "actas" (Storage): el PDF queda guardado en
+// "{projectId}/{meetingId}.pdf" cada vez que se genera desde
+// MeetingsCalendar -- así el cliente puede descargar el documento real
+// desde su portal en vez de solo ver los campos de texto. RLS en
+// storage.objects reusa can_view_project() sobre el primer segmento del
+// path (ver migración 2026091104_actas_storage.sql).
+export const ActasApi = {
+  async upload(projectId: string, meetingId: string, file: Blob): Promise<void> {
+    const path = `${projectId}/${meetingId}.pdf`;
+    const { error } = await supabase.storage
+      .from('actas')
+      .upload(path, file, { contentType: 'application/pdf', upsert: true });
+    if (error) throw new Error(error.message);
+  },
+
+  // null si el acta todavía no se ha generado para esa reunión (o si no
+  // tienes acceso) -- no es un error, solo "no hay nada que descargar".
+  async getUrl(projectId: string, meetingId: string): Promise<string | null> {
+    const path = `${projectId}/${meetingId}.pdf`;
+    const { data, error } = await supabase.storage.from('actas').createSignedUrl(path, 600);
+    if (error || !data?.signedUrl) return null;
+    return data.signedUrl;
   },
 };
 
@@ -363,25 +443,13 @@ export const AuditApi = {
   },
 };
 
+// MyOffice queda como el único proveedor interno (sin cuenta, sin selector
+// en la UI) -- este API solo se usa para resolver su id automáticamente al
+// crear/editar un proyecto (ver ProjectsList.tsx).
 export const ProvidersApi = {
   async list(): Promise<Provider[]> {
     const res = await supabase.from('providers').select('id, name').order('name', { ascending: true });
     return throwIfError<Provider[]>(res as any);
-  },
-
-  async create(name: string): Promise<Provider> {
-    const res = await supabase.from('providers').insert({ name }).select().single();
-    return throwIfError<Provider>(res as any);
-  },
-
-  async rename(id: string, name: string) {
-    const res = await supabase.from('providers').update({ name }).eq('id', id);
-    throwIfError(res as any);
-  },
-
-  async remove(id: string) {
-    const res = await supabase.from('providers').delete().eq('id', id);
-    throwIfError(res as any);
   },
 };
 

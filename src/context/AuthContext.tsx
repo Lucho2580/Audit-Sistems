@@ -65,7 +65,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: error?.message };
       },
       async signOut() {
-        await supabase.auth.signOut();
+        // supabase-js intenta primero revocar la sesión en el servidor -- si
+        // esa llamada falla (red, sesión ya vencida, lo que sea) se queda sin
+        // limpiar el token guardado en localStorage, y la persona sigue
+        // "adentro" si recarga la página aunque haya hecho clic en "Salir".
+        // Por eso la limpieza local (estado + storage) se hace siempre,
+        // pase lo que pase con la llamada al servidor.
+        try {
+          await supabase.auth.signOut();
+        } catch {
+          // seguimos con la limpieza local de todas formas
+        }
+        setSession(null);
+        setProfile(null);
+        try {
+          Object.keys(localStorage)
+            .filter((k) => /^sb-.*-auth-token$/.test(k))
+            .forEach((k) => localStorage.removeItem(k));
+        } catch {
+          // localStorage puede no estar disponible (modo privado estricto)
+        }
       },
       async requestPasswordReset(email) {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {

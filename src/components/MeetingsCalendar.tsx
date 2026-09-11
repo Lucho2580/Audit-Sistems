@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { MeetingsApi, DailyNotesApi, ProfilesApi, type DirectoryUser } from '../lib/services';
-import { generateMeetingMinutesPdf } from '../lib/pdf';
-import { MEETING_STATE_META, type DailyNote, type Meeting, type MeetingState, type Project } from '../types/domain';
+import { MeetingsApi, DailyNotesApi, ProfilesApi, ActasApi, type DirectoryUser } from '../lib/services';
+import { generateMeetingActaPdf } from '../lib/acta';
+import { MEETING_STATE_META, type DailyNote, type Meeting, type MeetingState, type Participant, type Project } from '../types/domain';
+import { useAuth } from '../context/AuthContext';
 import DirectorySearch from './DirectorySearch';
 
 const MONTH_LABELS = [
@@ -9,6 +10,7 @@ const MONTH_LABELS = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ];
 const DAY_LABELS = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
+const ROLE_ORDER = ['Jefe de proyecto', 'Cliente', 'Persona asignada', 'Proveedor', 'Invitado'];
 const pad2 = (n: number) => String(n).padStart(2, '0');
 const todayISO = () => {
   const d = new Date();
@@ -20,10 +22,18 @@ interface Props {
   meetings: Meeting[];
   dailyNotes: DailyNote[];
   canEdit: boolean;
+  // Además de canEdit (jefe/superadmin), la persona asignada también puede
+  // dejar registrada una reunión que ella misma llevó -- para eso es este
+  // formulario "manual" (sin agendar en Teams), separado de "+ Agendar
+  // reunión" que sí crea el evento de Teams y es exclusivo de canEdit.
+  canRegisterMeeting: boolean;
   onChanged: () => void;
 }
 
-export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdit, onChanged }: Props) {
+export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdit, canRegisterMeeting, onChanged }: Props) {
+  const { profile } = useAuth();
+  const myEmail = profile?.email?.toLowerCase();
+  const [signingFor, setSigningFor] = useState<string | null>(null);
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -43,6 +53,12 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [noteForm, setNoteForm] = useState({ date: todayISO(), text: '' });
   const [savingNote, setSavingNote] = useState(false);
+  const [generatingActaFor, setGeneratingActaFor] = useState<string | null>(null);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualFormState, setManualFormState] = useState({ date: todayISO(), time: '10:00', title: '', modalidad: 'Microsoft Teams' });
+  const [manualParticipants, setManualParticipants] = useState<DirectoryUser[]>([]);
+  const [showManualAddParticipant, setShowManualAddParticipant] = useState(false);
+  const [savingManual, setSavingManual] = useState(false);
 
   const y = calMonth.getFullYear();
   const m = calMonth.getMonth();
@@ -72,13 +88,25 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
     return { ...mt, ...docDrafts[mt.id] };
   }
 
-  // Jefe, persona asignada y proveedor son participantes fijos de la reunión
-  // -- se toman siempre del proyecto (así que si cambia quién es la persona
-  // asignada o el proveedor, la próxima reunión ya sale con el actor
-  // correcto) y no se pueden quitar desde este formulario. El correo de jefe
-  // y responsable se busca aparte porque el proyecto solo trae su nombre; el
-  // proveedor no tiene cuenta, así que queda sin correo (se puede compartir
-  // el enlace de firma a mano).
+  // Identifica el rol de un participante comparando su nombre contra los
+  // actores fijos del proyecto -- quien no coincide con ninguno es un
+  // invitado externo agregado a mano o desde Entra ID.
+  function roleForParticipant(label: string): string {
+    if (label === project.jefeNombre) return 'Jefe de proyecto';
+    if (label === project.responsableNombre) return 'Persona asignada';
+    if (label === project.proveedor) return 'Proveedor';
+    if (project.clientes.some((c) => c.nombre === label)) return 'Cliente';
+    return 'Invitado';
+  }
+
+  // Jefe, persona asignada, proveedor y cliente son participantes fijos de
+  // la reunión -- se toman siempre del proyecto (así que si cambia quién es
+  // la persona asignada o el cliente, la próxima reunión ya sale con el
+  // actor correcto) y no se pueden quitar desde este formulario. El correo
+  // de jefe/responsable/cliente se busca aparte porque el proyecto solo
+  // trae su nombre; el proveedor no tiene cuenta, así que queda sin correo
+  // (se puede compartir el enlace de firma a mano). El cliente SÍ necesita
+  // su correo real: es quien firma desde su portal.
   const fixedParticipants = useMemo<DirectoryUser[]>(() => {
     const fixed: DirectoryUser[] = [];
     if (project.jefeId && project.jefeNombre) {
@@ -90,22 +118,38 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
     if (project.proveedorId && project.proveedor) {
       fixed.push({ id: project.proveedorId, name: project.proveedor, email: '' });
     }
+    for (const cliente of project.clientes) {
+      fixed.push({ id: cliente.id, name: cliente.nombre, email: actorEmails[cliente.id] ?? '' });
+    }
     return fixed;
-  }, [project.jefeId, project.jefeNombre, project.responsableId, project.responsableNombre, project.proveedorId, project.proveedor, actorEmails]);
+  }, [
+    project.jefeId, project.jefeNombre, project.responsableId, project.responsableNombre,
+    project.proveedorId, project.proveedor, project.clientes, actorEmails,
+  ]);
+
+  async function loadActorEmails() {
+    const ids = [project.jefeId, project.responsableId, ...project.clientes.map((c) => c.id)].filter((id): id is string => !!id);
+    if (!ids.length) return;
+    try {
+      const profiles = await ProfilesApi.getMany(ids);
+      setActorEmails(Object.fromEntries(profiles.map((p) => [p.id, p.email])));
+    } catch {
+      setActorEmails({});
+    }
+  }
 
   async function openMeetingForm() {
-    const ids = [project.jefeId, project.responsableId].filter((id): id is string => !!id);
-    if (ids.length) {
-      try {
-        const profiles = await ProfilesApi.getMany(ids);
-        setActorEmails(Object.fromEntries(profiles.map((p) => [p.id, p.email])));
-      } catch {
-        setActorEmails({});
-      }
-    }
+    await loadActorEmails();
     setNewParticipants([]);
     setShowAddParticipant(false);
     setShowForm(true);
+  }
+
+  async function openManualForm() {
+    await loadActorEmails();
+    setManualParticipants([]);
+    setShowManualAddParticipant(false);
+    setShowManualForm(true);
   }
 
   async function createMeeting() {
@@ -113,6 +157,7 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
     const created = await MeetingsApi.create(project.id, {
       date: formState.date, time: formState.time, title: formState.title.trim(),
       participants: [...fixedParticipants, ...newParticipants].map((u) => ({ label: u.name, email: u.email })),
+      modalidad: 'Microsoft Teams',
     });
     const agenda = formState.agenda.trim();
     setShowForm(false);
@@ -128,6 +173,38 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
     } finally {
       setCreatingTeamsFor(null);
       onChanged();
+    }
+  }
+
+  // Registra una reunión que ya se llevó a cabo por fuera de Teams (ej. la
+  // sostuvo la persona asignada de forma presencial u otra plataforma): no
+  // crea evento de Teams, y queda directo en "Realizada" -- por eso también
+  // dispara el envío del enlace de firma a los participantes, igual que
+  // cuando se cambia el estado manualmente.
+  async function createManualMeeting() {
+    if (!manualFormState.date) { alert('Selecciona una fecha para la reunión.'); return; }
+    setSavingManual(true);
+    try {
+      const created = await MeetingsApi.create(project.id, {
+        date: manualFormState.date, time: manualFormState.time, title: manualFormState.title.trim(),
+        participants: [...fixedParticipants, ...manualParticipants].map((u) => ({ label: u.name, email: u.email })),
+        modalidad: manualFormState.modalidad,
+      });
+      await MeetingsApi.updateState(created.id, 'realizada');
+      setShowManualForm(false);
+      setManualParticipants([]);
+      setManualFormState({ date: todayISO(), time: '10:00', title: '', modalidad: 'Microsoft Teams' });
+      onChanged();
+      try {
+        await MeetingsApi.notifySignatures(created.id);
+      } catch {
+        // No es crítico: el admin/encargado puede reenviar el enlace de
+        // firma manualmente desde la fila de la reunión si esto falla.
+      }
+    } catch (err) {
+      alert(`No se pudo registrar la reunión: ${(err as Error).message}`);
+    } finally {
+      setSavingManual(false);
     }
   }
 
@@ -169,7 +246,12 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
     onChanged();
   }
 
-  async function saveDocAndGeneratePdf(mt: Meeting) {
+  // Guarda el documento y manda el aviso de firma a los participantes (en
+  // vez de solo generar un PDF local) -- así la persona asignada dispara la
+  // notificación justo cuando el acta ya quedó redactada como quiere, sin
+  // depender únicamente del envío automático al marcar la reunión como
+  // "Realizada" (por si el contenido se editó después, o ese envío falló).
+  async function saveDocAndNotify(mt: Meeting) {
     const draft = docDrafts[mt.id] ?? {};
     const saved = await MeetingsApi.updateDoc(mt.id, {
       topics: draft.topics ?? mt.topics,
@@ -177,8 +259,27 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
       risks: draft.risks ?? mt.risks,
       nextSteps: draft.nextSteps ?? mt.nextSteps,
     });
-    generateMeetingMinutesPdf(project, saved);
     onChanged();
+    setNotifying(mt.id);
+    try {
+      const pdf = await generateMeetingActaPdf(project, saved);
+      try {
+        await ActasApi.upload(project.id, saved.id, pdf);
+      } catch {
+        // La notificación es lo importante -- si falla solo la copia en
+        // Storage, no vale la pena tumbar el envío por eso.
+      }
+      const result = await MeetingsApi.notifySignatures(saved.id);
+      if (result.failed.length) {
+        alert(`Se enviaron ${result.sent} aviso(s) de firma. Fallaron: ${result.failed.join(', ')}.`);
+      } else if (result.sent === 0) {
+        alert('El acta se guardó, pero ningún participante tiene correo registrado para avisarle.');
+      }
+    } catch (err) {
+      alert(`El acta se guardó, pero no se pudo enviar el aviso de firma: ${(err as Error).message}`);
+    } finally {
+      setNotifying(null);
+    }
   }
 
   async function addDailyNote() {
@@ -203,6 +304,27 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
     onChanged();
   }
 
+  // Genera el acta con el formato institucional (FO-GT-018) directo desde los
+  // datos actuales de la reunión, sin pasar por el panel de edición de
+  // "Documento" -- para cuando quien elabora el acta no es la persona
+  // asignada (que es quien normalmente abre y guarda ese panel).
+  async function generateActa(mt: Meeting) {
+    setGeneratingActaFor(mt.id);
+    try {
+      const pdf = await generateMeetingActaPdf(project, mt);
+      try {
+        await ActasApi.upload(project.id, mt.id, pdf);
+      } catch {
+        // El acta ya se descargó localmente -- si falla solo la copia en
+        // Storage, no vale la pena tumbar la acción completa por eso.
+      }
+    } catch (err) {
+      alert(`No se pudo generar el acta: ${(err as Error).message}`);
+    } finally {
+      setGeneratingActaFor(null);
+    }
+  }
+
   async function copySignLink(participantId: string) {
     let link: string;
     try {
@@ -215,6 +337,22 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
       () => { setCopiedFor(participantId); setTimeout(() => setCopiedFor(null), 1400); },
       () => prompt('Copia este enlace de firma:', link),
     );
+  }
+
+  // Firma desde la propia cuenta: jefe/persona asignada firman su propia
+  // fila de participante entrando a la app (no reciben el enlace por
+  // correo, solo el aviso -- ver send-signature-links). Mismo patrón que
+  // "Firmar acta" en el portal de clientes.
+  async function signMyself(p: Participant) {
+    setSigningFor(p.id);
+    try {
+      const link = await MeetingsApi.getSignLink(p.id);
+      window.open(link, '_blank', 'noopener');
+    } catch (err) {
+      alert(`No se pudo abrir el enlace de firma: ${(err as Error).message}`);
+    } finally {
+      setSigningFor(null);
+    }
   }
 
   return (
@@ -280,6 +418,15 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
           {canEdit && (
             <button className="btn small" onClick={() => (showForm ? setShowForm(false) : openMeetingForm())}>
               {showForm ? 'Cancelar' : '+ Agendar reunión'}
+            </button>
+          )}
+          {canRegisterMeeting && (
+            <button
+              className="btn small ghost"
+              title="Para cuando la reunión no se agendó en Teams (la llevó la persona asignada por otro medio)"
+              onClick={() => (showManualForm ? setShowManualForm(false) : openManualForm())}
+            >
+              {showManualForm ? 'Cancelar' : '+ Registrar reunión manual'}
             </button>
           )}
           {canEdit && (
@@ -357,6 +504,7 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
                   {showAddParticipant ? (
                     <DirectorySearch
                       placeholder="Buscar persona en Entra ID…"
+                      roleLabel="Invitado"
                       onSelect={(u) => {
                         if (newParticipants.some((p) => p.id === u.id)) return;
                         setNewParticipants((arr) => [...arr, u]);
@@ -396,6 +544,112 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
               <div className="modal-foot-actions">
                 <button className="btn ghost" onClick={() => setShowForm(false)}>Cancelar</button>
                 <button className="btn" onClick={createMeeting}>Agendar en Teams</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showManualForm && (
+        <div className="modal-overlay" onClick={() => setShowManualForm(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <div className="modal-kicker">Registro manual</div>
+                <h2 className="modal-title">Registrar reunión</h2>
+              </div>
+              <button className="modal-close" title="Cerrar" onClick={() => setShowManualForm(false)}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <p className="modal-intro">
+                Para una reunión que no se agendó con "+ Agendar reunión". Queda registrada
+                directamente como "Realizada" y se les manda a los participantes el enlace de
+                firma del acta.
+              </p>
+              <div className="modal-fields">
+                <div className="modal-field">
+                  <label>Motivo / título</label>
+                  <input
+                    type="text"
+                    value={manualFormState.title}
+                    onChange={(e) => setManualFormState({ ...manualFormState, title: e.target.value })}
+                    placeholder="Ej. Revisión de avance"
+                  />
+                </div>
+                <div className="modal-field-grid">
+                  <div className="modal-field">
+                    <label>Fecha</label>
+                    <input
+                      type="date"
+                      value={manualFormState.date}
+                      onChange={(e) => setManualFormState({ ...manualFormState, date: e.target.value })}
+                    />
+                  </div>
+                  <div className="modal-field">
+                    <label>Hora</label>
+                    <input
+                      type="time"
+                      value={manualFormState.time}
+                      onChange={(e) => setManualFormState({ ...manualFormState, time: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="modal-field">
+                  <label>Modalidad</label>
+                  <select
+                    value={manualFormState.modalidad}
+                    onChange={(e) => setManualFormState({ ...manualFormState, modalidad: e.target.value })}
+                  >
+                    <option value="Microsoft Teams">Microsoft Teams</option>
+                    <option value="Presencial">Presencial</option>
+                    <option value="Otra">Otra</option>
+                  </select>
+                </div>
+                <div className="modal-field">
+                  <label>Participantes</label>
+                  <p className="modal-field-hint">Jefe del proyecto, persona asignada y proveedor.</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {fixedParticipants.map((p) => (
+                      <span className="participant-chip" key={p.id}>{p.name}</span>
+                    ))}
+                    {manualParticipants.map((p) => (
+                      <span className="participant-chip" key={p.id}>
+                        {p.name}
+                        <button
+                          type="button"
+                          onClick={() => setManualParticipants((arr) => arr.filter((x) => x.id !== p.id))}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  {showManualAddParticipant ? (
+                    <DirectorySearch
+                      placeholder="Buscar persona en Entra ID…"
+                      roleLabel="Invitado"
+                      onSelect={(u) => {
+                        if (manualParticipants.some((p) => p.id === u.id)) return;
+                        setManualParticipants((arr) => [...arr, u]);
+                      }}
+                    />
+                  ) : (
+                    <button type="button" className="directory-manual-toggle" onClick={() => setShowManualAddParticipant(true)}>
+                      + Agregar participante
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="modal-foot">
+              <span className="modal-foot-hint">No se agenda en Teams.</span>
+              <div className="modal-foot-actions">
+                <button className="btn ghost" onClick={() => setShowManualForm(false)}>Cancelar</button>
+                <button className="btn" onClick={createManualMeeting} disabled={savingManual}>
+                  {savingManual ? 'Guardando…' : 'Registrar reunión'}
+                </button>
               </div>
             </div>
           </div>
@@ -496,30 +750,62 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
                   >
                     📄 Documento
                   </button>
+                  <button
+                    className="btn small ghost"
+                    title="Generar el acta de esta reunión con los datos actuales, sin abrir el panel de Documento"
+                    onClick={() => generateActa(mt)}
+                    disabled={generatingActaFor === mt.id}
+                  >
+                    {generatingActaFor === mt.id ? 'Generando…' : '🖨️ Generar acta'}
+                  </button>
                   {canEdit && (
                     <button className="del-btn" title="Eliminar reunión" onClick={() => deleteMeeting(mt)}>×</button>
                   )}
                 </div>
+                <div className="hu-section-head">
+                  <span className="hu-tag">Par</span>
+                  <h3>Participantes</h3>
+                </div>
                 <div className="meeting-participants">
-                  <span className="plabel">Participantes:</span>
                   {mt.participants.length ? (
-                    mt.participants.map((p) => (
-                      <span className={`participant-chip ${p.signature ? 'signed' : ''}`} key={p.id}>
-                        {p.signature ? '✓ ' : ''}{p.label}
-                        {canEdit && (
-                          <button
-                            className="link-btn"
-                            title="Copiar enlace de firma para este participante"
-                            onClick={() => copySignLink(p.id)}
-                          >
-                            {copiedFor === p.id ? '✓' : '🔗'}
-                          </button>
-                        )}
-                        {canEdit && (
-                          <button title="Quitar participante" onClick={() => removeParticipant(p.id)}>×</button>
-                        )}
-                      </span>
-                    ))
+                    ROLE_ORDER.map((role) => {
+                      const inRole = mt.participants.filter((p) => roleForParticipant(p.label) === role);
+                      if (!inRole.length) return null;
+                      return (
+                        <div className="participant-role-row" key={role}>
+                          <span className="participant-role-label">{role}</span>
+                          <span className="participant-role-chips">
+                            {inRole.map((p) => (
+                              <span className={`participant-chip ${p.signature ? 'signed' : ''}`} key={p.id}>
+                                {p.signature ? '✓ ' : ''}{p.label}
+                                {!p.signature && myEmail && p.email?.toLowerCase() === myEmail && (
+                                  <button
+                                    className="sign-self-btn"
+                                    title="Firmar este documento con tu cuenta"
+                                    onClick={() => signMyself(p)}
+                                    disabled={signingFor === p.id}
+                                  >
+                                    {signingFor === p.id ? 'Abriendo…' : 'Firmar'}
+                                  </button>
+                                )}
+                                {canEdit && (
+                                  <button
+                                    className="link-btn"
+                                    title="Copiar enlace de firma para este participante"
+                                    onClick={() => copySignLink(p.id)}
+                                  >
+                                    {copiedFor === p.id ? '✓' : '🔗'}
+                                  </button>
+                                )}
+                                {canEdit && (
+                                  <button title="Quitar participante" onClick={() => removeParticipant(p.id)}>×</button>
+                                )}
+                              </span>
+                            ))}
+                          </span>
+                        </div>
+                      );
+                    })
                   ) : (
                     <span className="participant-empty">Sin participantes agregados</span>
                   )}
@@ -527,6 +813,7 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
                     <span className="participant-add">
                       <DirectorySearch
                         placeholder="Buscar persona en Entra ID…"
+                        roleLabel="Invitado"
                         onSelect={(u) => addParticipant(mt, u)}
                       />
                     </span>
@@ -534,39 +821,62 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
                 </div>
                 {docOpen && (
                   <div className="meeting-doc">
-                    <div className="meeting-doc-grid">
-                      <div className="field full">
-                        <label>Temas tratados</label>
+                    <div className="hu-section-head">
+                      <span className="hu-tag">Tem</span>
+                      <h3>Temas tratados</h3>
+                    </div>
+                    <textarea
+                      className="hu-textarea"
+                      rows={3}
+                      value={draft.topics}
+                      onChange={(e) => setDocDrafts((d) => ({ ...d, [mt.id]: { ...d[mt.id], topics: e.target.value } }))}
+                      placeholder="Puntos revisados en la reunión…"
+                    />
+
+                    <div className="hu-section-head">
+                      <span className="hu-tag">Acu</span>
+                      <h3>Acuerdos y compromisos</h3>
+                    </div>
+                    <textarea
+                      className="hu-textarea"
+                      rows={3}
+                      value={draft.agreements}
+                      onChange={(e) => setDocDrafts((d) => ({ ...d, [mt.id]: { ...d[mt.id], agreements: e.target.value } }))}
+                      placeholder="Qué se acordó y qué se decidió…"
+                    />
+
+                    <div className="hu-grid-2">
+                      <div>
+                        <div className="hu-section-head">
+                          <span className="hu-tag">Rie</span>
+                          <h3>Riesgos u observaciones</h3>
+                        </div>
                         <textarea
-                          value={draft.topics}
-                          onChange={(e) => setDocDrafts((d) => ({ ...d, [mt.id]: { ...d[mt.id], topics: e.target.value } }))}
-                        />
-                      </div>
-                      <div className="field full">
-                        <label>Acuerdos y compromisos</label>
-                        <textarea
-                          value={draft.agreements}
-                          onChange={(e) => setDocDrafts((d) => ({ ...d, [mt.id]: { ...d[mt.id], agreements: e.target.value } }))}
-                        />
-                      </div>
-                      <div className="field">
-                        <label>Riesgos u observaciones</label>
-                        <textarea
+                          className="hu-textarea"
+                          rows={3}
                           value={draft.risks}
                           onChange={(e) => setDocDrafts((d) => ({ ...d, [mt.id]: { ...d[mt.id], risks: e.target.value } }))}
+                          placeholder="Riesgos u observaciones…"
                         />
                       </div>
-                      <div className="field">
-                        <label>Próximos pasos</label>
+                      <div>
+                        <div className="hu-section-head">
+                          <span className="hu-tag">Pas</span>
+                          <h3>Próximos pasos</h3>
+                        </div>
                         <textarea
+                          className="hu-textarea"
+                          rows={3}
                           value={draft.nextSteps}
                           onChange={(e) => setDocDrafts((d) => ({ ...d, [mt.id]: { ...d[mt.id], nextSteps: e.target.value } }))}
+                          placeholder="Compromisos para la siguiente iteración…"
                         />
                       </div>
                     </div>
+
                     <div className="actions">
-                      <button className="btn small" onClick={() => saveDocAndGeneratePdf(mt)}>
-                        Generar documento (PDF) ↓
+                      <button className="btn small" onClick={() => saveDocAndNotify(mt)} disabled={notifying === mt.id}>
+                        {notifying === mt.id ? 'Enviando…' : 'Enviar notificación del acta'}
                       </button>
                     </div>
                   </div>

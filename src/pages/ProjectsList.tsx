@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import ProjectsDashboard from '../components/ProjectsDashboard';
 import ProfilePicker from '../components/ProfilePicker';
-import ProviderPicker from '../components/ProviderPicker';
+import ClientsPicker from '../components/ClientsPicker';
 import { useSidebarStats, useDashboardToggle } from '../context/ShellChromeContext';
-import { ProjectsApi } from '../lib/services';
+import { ProjectsApi, ProvidersApi } from '../lib/services';
 import { exportProjectsCsv, downloadCsvTemplate } from '../lib/csv';
-import { STATUS_META, type Project, type ProjectStatus, type ProfileLite, type Provider } from '../types/domain';
+import { STATUS_META, type Project, type ProjectStatus, type ProfileLite } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
 
 const ACTIVE_STATES: ProjectStatus[] = ['levantamiento', 'desarrollo', 'validacion'];
@@ -16,10 +16,10 @@ interface ActorForm {
   name: string;
   jefe: ProfileLite | null;
   responsable: ProfileLite | null;
-  proveedor: Provider | null;
+  clientes: ProfileLite[];
 }
 
-const EMPTY_FORM: ActorForm = { name: '', jefe: null, responsable: null, proveedor: null };
+const EMPTY_FORM: ActorForm = { name: '', jefe: null, responsable: null, clientes: [] };
 
 export default function ProjectsList() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -31,12 +31,26 @@ export default function ProjectsList() {
   const [form, setForm] = useState<ActorForm>(EMPTY_FORM);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [creating, setCreating] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editForm, setEditForm] = useState<ActorForm>(EMPTY_FORM);
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+  const [savingActors, setSavingActors] = useState(false);
+  // MyOffice es el único proveedor interno (sin cuenta, sin selector) -- se
+  // resuelve una vez y se manda solo, en vez de pedirle al usuario que elija
+  // entre proveedores que ya no existen como opción.
+  const [myOfficeProviderId, setMyOfficeProviderId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { profile } = useAuth();
   // El asignado (desarrollador) ya no puede cambiar el estado ni borrar
   // proyectos desde la lista -- solo entrar a ver el detalle de los suyos.
   const canManage = profile?.role === 'admin' || profile?.role === 'superadmin';
   const canCreate = profile?.role === 'admin' || profile?.role === 'superadmin';
+
+  useEffect(() => {
+    ProvidersApi.list()
+      .then((list) => setMyOfficeProviderId(list.find((p) => p.name === 'MyOffice')?.id ?? list[0]?.id ?? null))
+      .catch(() => setMyOfficeProviderId(null));
+  }, []);
 
   async function load() {
     setLoading(true);
@@ -135,18 +149,22 @@ export default function ProjectsList() {
     if (!form.name.trim()) errors.name = 'Ingresa un nombre para el proyecto.';
     if (!form.jefe) errors.jefe = 'Elige quién es el jefe de proyecto.';
     if (!form.responsable) errors.responsable = 'Elige quién es la persona asignada.';
-    if (!form.proveedor) errors.proveedor = 'Elige el proveedor.';
+    if (!form.clientes.length) errors.cliente = 'Elige al menos un cliente.';
+    if (!myOfficeProviderId) errors.proveedor = 'No se encontró el proveedor interno (MyOffice) -- revisa en Herramientas.';
     setFormErrors(errors);
     if (Object.keys(errors).length) return;
 
     setCreating(true);
     try {
-      const { id } = await ProjectsApi.create({ name: form.name.trim(), proveedor: form.proveedor!.name });
+      const { id } = await ProjectsApi.create({ name: form.name.trim(), proveedor: 'MyOffice' });
       await ProjectsApi.setActors(id, {
         jefeId: form.jefe!.id,
         responsableId: form.responsable!.id,
-        proveedorId: form.proveedor!.id,
+        proveedorId: myOfficeProviderId!,
       });
+      for (const cliente of form.clientes) {
+        await ProjectsApi.addClient(id, cliente.id);
+      }
       setForm(EMPTY_FORM);
       setFormErrors({});
       setShowIntake(false);
@@ -155,6 +173,57 @@ export default function ProjectsList() {
       alert(`No se pudo crear el proyecto: ${(err as Error).message}`);
     } finally {
       setCreating(false);
+    }
+  }
+
+  // Los 3 actores solo se pedían al crear el proyecto -- esto permite
+  // reasignarlos después (ej. un proyecto creado sin jefe, o cambio de
+  // responsable a mitad de camino). Reusa set_project_actors, que ya estaba
+  // pensado para reasignar, no solo para el alta inicial.
+  function openEditActors(p: Project) {
+    setEditingProject(p);
+    setEditForm({
+      name: p.name,
+      jefe: p.jefeId ? { id: p.jefeId, fullName: p.jefeNombre, email: '', role: 'admin' } : null,
+      responsable: p.responsableId ? { id: p.responsableId, fullName: p.responsableNombre, email: '', role: 'desarrollador' } : null,
+      clientes: p.clientes.map((c) => ({ id: c.id, fullName: c.nombre, email: '', role: 'cliente' as const })),
+    });
+    setEditErrors({});
+  }
+
+  async function saveActors() {
+    if (!editingProject) return;
+    const errors: Record<string, string> = {};
+    if (!editForm.jefe) errors.jefe = 'Elige quién es el jefe de proyecto.';
+    if (!editForm.responsable) errors.responsable = 'Elige quién es la persona asignada.';
+    if (!editForm.clientes.length) errors.cliente = 'Elige al menos un cliente.';
+    if (!editingProject.proveedorId && !myOfficeProviderId) {
+      errors.proveedor = 'No se encontró el proveedor interno (MyOffice) -- revisa en Herramientas.';
+    }
+    setEditErrors(errors);
+    if (Object.keys(errors).length) return;
+
+    setSavingActors(true);
+    try {
+      await ProjectsApi.setActors(editingProject.id, {
+        jefeId: editForm.jefe!.id,
+        responsableId: editForm.responsable!.id,
+        proveedorId: editingProject.proveedorId ?? myOfficeProviderId!,
+      });
+      const beforeIds = new Set(editingProject.clientes.map((c) => c.id));
+      const afterIds = new Set(editForm.clientes.map((c) => c.id));
+      for (const cliente of editForm.clientes) {
+        if (!beforeIds.has(cliente.id)) await ProjectsApi.addClient(editingProject.id, cliente.id);
+      }
+      for (const cliente of editingProject.clientes) {
+        if (!afterIds.has(cliente.id)) await ProjectsApi.removeClient(editingProject.id, cliente.id);
+      }
+      setEditingProject(null);
+      load();
+    } catch (err) {
+      alert(`No se pudo actualizar: ${(err as Error).message}`);
+    } finally {
+      setSavingActors(false);
     }
   }
 
@@ -234,8 +303,9 @@ export default function ProjectsList() {
             </div>
             <div className="modal-body">
               <p className="modal-intro">
-                El código se asigna automáticamente al guardar. Los tres roles se eligen entre las
-                cuentas creadas en Herramientas.
+                El código se asigna automáticamente al guardar. El proveedor interno queda fijo
+                (MyOffice); el jefe, la persona asignada y el cliente se eligen entre las cuentas
+                creadas en Herramientas.
               </p>
               <div className="modal-fields">
                 <div className={`modal-field${formErrors.name ? ' has-error' : ''}`}>
@@ -264,9 +334,14 @@ export default function ProjectsList() {
                     {formErrors.responsable && <span className="field-error">{formErrors.responsable}</span>}
                   </div>
                 </div>
-                <div className={`modal-field${formErrors.proveedor ? ' has-error' : ''}`}>
-                  <label>Proveedor</label>
-                  <ProviderPicker value={form.proveedor} onChange={(p) => setForm({ ...form, proveedor: p })} />
+                <div className={`modal-field${formErrors.cliente ? ' has-error' : ''}`}>
+                  <label>Clientes</label>
+                  <ClientsPicker
+                    value={form.clientes}
+                    onChange={(list) => setForm({ ...form, clientes: list })}
+                    invalid={!!formErrors.cliente}
+                  />
+                  {formErrors.cliente && <span className="field-error">{formErrors.cliente}</span>}
                   {formErrors.proveedor && <span className="field-error">{formErrors.proveedor}</span>}
                 </div>
               </div>
@@ -296,18 +371,102 @@ export default function ProjectsList() {
         </div>
       )}
 
+      {editingProject && (
+        <div className="modal-overlay" onClick={() => setEditingProject(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <div className="modal-kicker">{editingProject.code}</div>
+                <h2 className="modal-title">Editar actores</h2>
+              </div>
+              <button className="modal-close" title="Cerrar" onClick={() => setEditingProject(null)}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <p className="modal-intro">
+                Reasigna quién es el jefe de proyecto, la persona asignada y el proveedor de "
+                {editingProject.name}".
+              </p>
+              <div className="modal-fields">
+                <div className="modal-field-grid">
+                  <div className={`modal-field${editErrors.jefe ? ' has-error' : ''}`}>
+                    <label>Jefe de proyecto</label>
+                    <ProfilePicker role="admin" value={editForm.jefe} onChange={(p) => setEditForm({ ...editForm, jefe: p })} />
+                    {editErrors.jefe && <span className="field-error">{editErrors.jefe}</span>}
+                  </div>
+                  <div className={`modal-field${editErrors.responsable ? ' has-error' : ''}`}>
+                    <label>Persona asignada</label>
+                    <ProfilePicker
+                      role="desarrollador"
+                      value={editForm.responsable}
+                      onChange={(p) => setEditForm({ ...editForm, responsable: p })}
+                    />
+                    {editErrors.responsable && <span className="field-error">{editErrors.responsable}</span>}
+                  </div>
+                </div>
+                <div className={`modal-field${editErrors.cliente ? ' has-error' : ''}`}>
+                  <label>Clientes</label>
+                  <ClientsPicker
+                    value={editForm.clientes}
+                    onChange={(list) => setEditForm({ ...editForm, clientes: list })}
+                    invalid={!!editErrors.cliente}
+                  />
+                  {editErrors.cliente && <span className="field-error">{editErrors.cliente}</span>}
+                  {editErrors.proveedor && <span className="field-error">{editErrors.proveedor}</span>}
+                </div>
+              </div>
+            </div>
+            <div className="modal-foot">
+              <span className="modal-foot-hint">El código y el nombre del proyecto no cambian aquí.</span>
+              <div className="modal-foot-actions">
+                <button className="btn ghost" onClick={() => setEditingProject(null)}>
+                  Cancelar
+                </button>
+                <button className="btn" onClick={saveActors} disabled={savingActors}>
+                  {savingActors ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="proj-table">
         {loading ? (
           <div className="empty-state">Cargando…</div>
         ) : visible.length === 0 ? (
-          <div className="empty-state">No hay proyectos con este filtro. Crea uno con “+ Nuevo proyecto”.</div>
+          <div className="empty-state">
+            {canCreate
+              ? 'No hay proyectos con este filtro. Crea uno con “+ Nuevo proyecto”.'
+              : 'No tienes proyectos asignados con este filtro.'}
+          </div>
         ) : (
           visible.map((p) => (
             <div className="proj-row" key={p.id} onClick={() => navigate(`/projects/${p.id}`)} title="Ver detalle del proyecto">
               <div className="proj-main">
                 <div className="proj-code">{p.code}</div>
                 <div className="proj-name">{p.name}</div>
-                <div className="proj-meta">{p.proveedor} · {p.responsableNombre ?? '—'}</div>
+                <div className="proj-meta">
+                  <span className="proj-meta-item">
+                    <span className="proj-meta-label">Jefe</span>
+                    <span className="proj-meta-value">{p.jefeNombre ?? 'Sin asignar'}</span>
+                  </span>
+                  <span className="proj-meta-item">
+                    <span className="proj-meta-label">{p.clientes.length > 1 ? 'Clientes' : 'Cliente'}</span>
+                    <span className="proj-meta-value">
+                      {p.clientes.length ? p.clientes.map((c) => c.nombre).join(', ') : 'Sin asignar'}
+                    </span>
+                  </span>
+                  <span className="proj-meta-item">
+                    <span className="proj-meta-label">Asignado</span>
+                    <span className="proj-meta-value">{p.responsableNombre ?? 'Sin asignar'}</span>
+                  </span>
+                  <span className="proj-meta-item">
+                    <span className="proj-meta-label">Proveedor</span>
+                    <span className="proj-meta-value">{p.proveedor}</span>
+                  </span>
+                </div>
               </div>
               <div className="proj-side" onClick={(e) => e.stopPropagation()}>
                 <select
@@ -323,6 +482,11 @@ export default function ProjectsList() {
                   ))}
                 </select>
                 <span className="proj-pct">{p.stats?.pct ?? 0}%</span>
+                {canManage && (
+                  <button className="btn small ghost" title="Editar jefe, persona asignada y proveedor" onClick={() => openEditActors(p)}>
+                    Editar
+                  </button>
+                )}
                 {canManage && (
                   <button className="del-btn" title="Eliminar proyecto" onClick={() => deleteProject(p)}>
                     ×
