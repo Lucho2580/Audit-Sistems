@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ProfilesApi } from '../lib/services';
 import { ACTOR_ROLE_LABEL, type ProfileLite, type UserRole } from '../types/domain';
+import { initials } from './DirectorySearch';
 
 interface Props {
   role: UserRole;
@@ -78,8 +79,11 @@ export default function ProfilePicker({ role, value, onChange, placeholder, inva
                 setOpen(false);
               }}
             >
-              <span className="name">{p.fullName ?? p.email}</span>
-              <span className="email">{p.email}</span>
+              <span className="ds-avatar">{initials(p.fullName ?? p.email)}</span>
+              <span className="ds-result-info">
+                <span className="name">{p.fullName ?? p.email}</span>
+                <span className="email">{p.email}</span>
+              </span>
             </button>
           ))}
         </div>
