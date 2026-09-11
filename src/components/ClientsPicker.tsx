@@ -44,7 +44,6 @@ export default function ClientsPicker({ value, onChange, invalid }: Props) {
   function add(p: ProfileLite) {
     onChange([...value, p]);
     setQ('');
-    setResults([]);
     setOpen(false);
   }
 

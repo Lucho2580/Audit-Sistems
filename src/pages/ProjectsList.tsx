@@ -149,7 +149,6 @@ export default function ProjectsList() {
     if (!form.name.trim()) errors.name = 'Ingresa un nombre para el proyecto.';
     if (!form.jefe) errors.jefe = 'Elige quién es el jefe de proyecto.';
     if (!form.responsable) errors.responsable = 'Elige quién es la persona asignada.';
-    if (!form.clientes.length) errors.cliente = 'Elige al menos un cliente.';
     if (!myOfficeProviderId) errors.proveedor = 'No se encontró el proveedor interno (MyOffice) -- revisa en Herramientas.';
     setFormErrors(errors);
     if (Object.keys(errors).length) return;
@@ -196,7 +195,6 @@ export default function ProjectsList() {
     const errors: Record<string, string> = {};
     if (!editForm.jefe) errors.jefe = 'Elige quién es el jefe de proyecto.';
     if (!editForm.responsable) errors.responsable = 'Elige quién es la persona asignada.';
-    if (!editForm.clientes.length) errors.cliente = 'Elige al menos un cliente.';
     if (!editingProject.proveedorId && !myOfficeProviderId) {
       errors.proveedor = 'No se encontró el proveedor interno (MyOffice) -- revisa en Herramientas.';
     }

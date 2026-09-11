@@ -75,7 +75,6 @@ export default function ProfilePicker({ role, value, onChange, placeholder, inva
               onClick={() => {
                 onChange(p);
                 setQ('');
-                setResults([]);
                 setOpen(false);
               }}
             >
