@@ -83,10 +83,9 @@ export default function SignPage() {
   function DocumentPreview() {
     if (!status) return null;
     const rows: [string, string][] = [
-      ['Temas tratados', status.topics],
-      ['Acuerdos y compromisos', status.agreements],
-      ['Riesgos u observaciones', status.risks],
-      ['Próximos pasos', status.nextSteps],
+      ['Orden del día', status.topics],
+      ['Desarrollo de la reunión', status.agreements],
+      ['Observaciones', status.risks],
     ];
     return (
       <div className="sign-document">
@@ -105,6 +104,24 @@ export default function SignPage() {
             <p>{value?.trim() || 'Sin registrar.'}</p>
           </div>
         ))}
+        <div className="sign-document-field">
+          <div className="sign-document-label">Compromisos</div>
+          {status.compromisos.length ? (
+            <ul className="sign-document-compromisos">
+              {status.compromisos.map((c, i) => (
+                <li key={i}>
+                  {c.text}
+                  <span className="sign-document-compromiso-meta">
+                    {c.responsable ? ` · Responsable: ${c.responsable}` : ''}
+                    {c.fechaLimite ? ` · Fecha límite: ${c.fechaLimite}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>Sin registrar.</p>
+          )}
+        </div>
       </div>
     );
   }

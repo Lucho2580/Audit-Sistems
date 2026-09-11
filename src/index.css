@@ -241,7 +241,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .account-email{font-size:12.5px;color:var(--ink-soft);margin-top:4px;}
 .account-side{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-self:end;}
 .selected-person-chip{display:flex;align-items:center;gap:12px;margin:0;padding:10px 14px;background:var(--paper);border:1px solid var(--hairline);font-size:13px;}
-.clients-picker-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.multi-picker-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
 .selected-person-chip strong{font-family:'Fraunces',serif;font-size:14.5px;}
 .selected-person-chip span{color:var(--slate);}
 .selected-person-chip button{margin-left:auto;border:none;background:none;color:var(--brand-strong);cursor:pointer;text-decoration:underline;font-size:12px;padding:0;}
@@ -346,10 +346,21 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .directory-manual-actions{display:flex;gap:6px;}
 
 .meeting-doc{padding:18px 4px 18px;background:var(--card);border-top:1px solid var(--hairline);}
-.hu-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;}
 .hu-textarea{width:100%;box-sizing:border-box;font-family:'Inter',sans-serif;font-size:13px;line-height:1.7;color:var(--ink);background:var(--paper);border:1px solid var(--hairline-strong);border-radius:var(--radius-md);padding:12px 14px;resize:vertical;margin-bottom:18px;}
 .hu-textarea:focus{outline:2px solid var(--brand);outline-offset:1px;border-color:var(--brand);}
 .hu-textarea::placeholder{color:var(--slate);}
+.compromisos-editor{display:flex;flex-direction:column;gap:6px;margin-bottom:18px;}
+.compromiso-row{display:grid;grid-template-columns:minmax(0,1fr) 170px 140px 22px;gap:8px;align-items:center;}
+.compromiso-row.compromiso-head{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--slate);}
+.compromiso-row input,.compromiso-row select{width:100%;box-sizing:border-box;font-size:12.5px;padding:6px 9px;border:1px solid var(--hairline-strong);background:var(--card);color:var(--ink);}
+.compromiso-row input:focus,.compromiso-row select:focus{outline:none;border-color:var(--ink);}
+.compromiso-row button{border:none;background:none;color:var(--slate);cursor:pointer;font-size:14px;line-height:1;padding:0;}
+.attendance-editor{display:flex;flex-direction:column;gap:4px;margin-bottom:18px;padding:0 4px;}
+.attendance-chip{display:inline-flex;align-items:center;gap:5px;border-radius:var(--radius-pill);padding:3px 12px;font-size:12px;font-family:inherit;cursor:pointer;border:1px solid;background:none;transition:opacity .12s;}
+.attendance-chip.present{background:var(--green-bg);border-color:var(--green);color:var(--green);}
+.attendance-chip.absent{background:var(--paper);border-color:var(--hairline-strong);color:var(--slate);text-decoration:line-through;}
+.attendance-chip:hover{opacity:.8;}
+.compromiso-row button:hover{color:var(--danger);}
 .meeting-doc .actions{display:flex;justify-content:flex-end;gap:8px;}
 
 .top-banner{background:var(--green-bg);border:1px solid var(--green);color:var(--ink);font-size:13px;padding:12px 16px;margin-bottom:22px;display:flex;justify-content:space-between;align-items:center;gap:12px;}
@@ -377,6 +388,9 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .sign-document-field:last-child{margin-bottom:0;}
 .sign-document-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--brand-strong);margin-bottom:4px;}
 .sign-document-field p{margin:0;font-size:13px;line-height:1.6;white-space:pre-wrap;color:var(--ink-soft);}
+.sign-document-compromisos{margin:0;padding-left:18px;font-size:13px;line-height:1.6;color:var(--ink-soft);}
+.sign-document-compromisos li{margin-bottom:4px;}
+.sign-document-compromiso-meta{font-size:11.5px;color:var(--slate);}
 
 .audit-panel{padding:0;}
 .audit-row{display:flex;gap:14px;padding:12px 4px;border-bottom:1px solid var(--hairline);font-size:12.5px;align-items:baseline;}
@@ -425,7 +439,7 @@ footer{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;
   .proj-side{justify-self:start;}
   .intake-grid{grid-template-columns:1fr 1fr;}
   .meeting-form{grid-template-columns:1fr 1fr;}
-  .hu-grid-2{grid-template-columns:1fr;}
+  .compromiso-row{grid-template-columns:1fr;}
 }
 @media (max-width:640px){
   .kpis{grid-template-columns:repeat(2,1fr);}

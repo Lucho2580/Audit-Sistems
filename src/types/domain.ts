@@ -21,7 +21,10 @@ export interface ProfileLite {
   mustChangePassword?: boolean;
 }
 
-export interface ProjectClient {
+// Forma compartida por los actores del proyecto que pueden ser varios
+// (jefes, clientes) -- a diferencia de responsable/proveedor, que son un
+// solo actor.
+export interface ProjectPerson {
   id: string;
   nombre: string;
 }
@@ -80,12 +83,11 @@ export interface Project {
   finalDeliveryDate?: string | null;
   delayDays?: number;
   finalObservation?: string | null;
-  jefeId: string | null;
-  jefeNombre: string | null;
+  jefes: ProjectPerson[];
   responsableId: string | null;
   responsableNombre: string | null;
   proveedorId: string | null;
-  clientes: ProjectClient[];
+  clientes: ProjectPerson[];
 }
 
 export interface DailyNote {
@@ -126,6 +128,16 @@ export interface Participant {
   email: string | null;
   signature: string | null;
   signedAt: string | null;
+  attended: boolean;
+}
+
+// Cada compromiso trae su propio responsable y fecha límite -- así la tabla
+// de "Compromisos" del acta los muestra de verdad, en vez de "—" (antes era
+// una sola línea de texto libre, sin esos dos datos).
+export interface Compromiso {
+  text: string;
+  responsable: string | null;
+  fechaLimite: string | null;
 }
 
 export interface Meeting {
@@ -137,7 +149,7 @@ export interface Meeting {
   topics: string;
   agreements: string;
   risks: string;
-  nextSteps: string;
+  compromisos: Compromiso[];
   participants: Participant[];
   projectId: string;
   teamsJoinUrl: string | null;

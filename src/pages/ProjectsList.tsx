@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import ProjectsDashboard from '../components/ProjectsDashboard';
 import ProfilePicker from '../components/ProfilePicker';
-import ClientsPicker from '../components/ClientsPicker';
+import MultiProfilePicker from '../components/MultiProfilePicker';
 import { useSidebarStats, useDashboardToggle } from '../context/ShellChromeContext';
 import { ProjectsApi, ProvidersApi } from '../lib/services';
 import { exportProjectsCsv, downloadCsvTemplate } from '../lib/csv';
@@ -14,12 +14,12 @@ const ACTIVE_STATES: ProjectStatus[] = ['levantamiento', 'desarrollo', 'validaci
 
 interface ActorForm {
   name: string;
-  jefe: ProfileLite | null;
+  jefes: ProfileLite[];
   responsable: ProfileLite | null;
   clientes: ProfileLite[];
 }
 
-const EMPTY_FORM: ActorForm = { name: '', jefe: null, responsable: null, clientes: [] };
+const EMPTY_FORM: ActorForm = { name: '', jefes: [], responsable: null, clientes: [] };
 
 export default function ProjectsList() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -147,7 +147,7 @@ export default function ProjectsList() {
   async function createProject() {
     const errors: Record<string, string> = {};
     if (!form.name.trim()) errors.name = 'Ingresa un nombre para el proyecto.';
-    if (!form.jefe) errors.jefe = 'Elige quién es el jefe de proyecto.';
+    if (!form.jefes.length) errors.jefe = 'Elige al menos un jefe de proyecto.';
     if (!form.responsable) errors.responsable = 'Elige quién es la persona asignada.';
     if (!myOfficeProviderId) errors.proveedor = 'No se encontró el proveedor interno (MyOffice) -- revisa en Herramientas.';
     setFormErrors(errors);
@@ -157,10 +157,12 @@ export default function ProjectsList() {
     try {
       const { id } = await ProjectsApi.create({ name: form.name.trim(), proveedor: 'MyOffice' });
       await ProjectsApi.setActors(id, {
-        jefeId: form.jefe!.id,
         responsableId: form.responsable!.id,
         proveedorId: myOfficeProviderId!,
       });
+      for (const jefe of form.jefes) {
+        await ProjectsApi.addJefe(id, jefe.id);
+      }
       for (const cliente of form.clientes) {
         await ProjectsApi.addClient(id, cliente.id);
       }
@@ -175,7 +177,7 @@ export default function ProjectsList() {
     }
   }
 
-  // Los 3 actores solo se pedían al crear el proyecto -- esto permite
+  // Los actores solo se pedían al crear el proyecto -- esto permite
   // reasignarlos después (ej. un proyecto creado sin jefe, o cambio de
   // responsable a mitad de camino). Reusa set_project_actors, que ya estaba
   // pensado para reasignar, no solo para el alta inicial.
@@ -183,7 +185,7 @@ export default function ProjectsList() {
     setEditingProject(p);
     setEditForm({
       name: p.name,
-      jefe: p.jefeId ? { id: p.jefeId, fullName: p.jefeNombre, email: '', role: 'admin' } : null,
+      jefes: p.jefes.map((j) => ({ id: j.id, fullName: j.nombre, email: '', role: 'admin' as const })),
       responsable: p.responsableId ? { id: p.responsableId, fullName: p.responsableNombre, email: '', role: 'desarrollador' } : null,
       clientes: p.clientes.map((c) => ({ id: c.id, fullName: c.nombre, email: '', role: 'cliente' as const })),
     });
@@ -193,7 +195,7 @@ export default function ProjectsList() {
   async function saveActors() {
     if (!editingProject) return;
     const errors: Record<string, string> = {};
-    if (!editForm.jefe) errors.jefe = 'Elige quién es el jefe de proyecto.';
+    if (!editForm.jefes.length) errors.jefe = 'Elige al menos un jefe de proyecto.';
     if (!editForm.responsable) errors.responsable = 'Elige quién es la persona asignada.';
     if (!editingProject.proveedorId && !myOfficeProviderId) {
       errors.proveedor = 'No se encontró el proveedor interno (MyOffice) -- revisa en Herramientas.';
@@ -204,10 +206,17 @@ export default function ProjectsList() {
     setSavingActors(true);
     try {
       await ProjectsApi.setActors(editingProject.id, {
-        jefeId: editForm.jefe!.id,
         responsableId: editForm.responsable!.id,
         proveedorId: editingProject.proveedorId ?? myOfficeProviderId!,
       });
+      const beforeJefeIds = new Set(editingProject.jefes.map((j) => j.id));
+      const afterJefeIds = new Set(editForm.jefes.map((j) => j.id));
+      for (const jefe of editForm.jefes) {
+        if (!beforeJefeIds.has(jefe.id)) await ProjectsApi.addJefe(editingProject.id, jefe.id);
+      }
+      for (const jefe of editingProject.jefes) {
+        if (!afterJefeIds.has(jefe.id)) await ProjectsApi.removeJefe(editingProject.id, jefe.id);
+      }
       const beforeIds = new Set(editingProject.clientes.map((c) => c.id));
       const afterIds = new Set(editForm.clientes.map((c) => c.id));
       for (const cliente of editForm.clientes) {
@@ -316,25 +325,29 @@ export default function ProjectsList() {
                   />
                   {formErrors.name && <span className="field-error">{formErrors.name}</span>}
                 </div>
-                <div className="modal-field-grid">
-                  <div className={`modal-field${formErrors.jefe ? ' has-error' : ''}`}>
-                    <label>Jefe de proyecto</label>
-                    <ProfilePicker role="admin" value={form.jefe} onChange={(p) => setForm({ ...form, jefe: p })} />
-                    {formErrors.jefe && <span className="field-error">{formErrors.jefe}</span>}
-                  </div>
-                  <div className={`modal-field${formErrors.responsable ? ' has-error' : ''}`}>
-                    <label>Persona asignada</label>
-                    <ProfilePicker
-                      role="desarrollador"
-                      value={form.responsable}
-                      onChange={(p) => setForm({ ...form, responsable: p })}
-                    />
-                    {formErrors.responsable && <span className="field-error">{formErrors.responsable}</span>}
-                  </div>
+                <div className={`modal-field${formErrors.jefe ? ' has-error' : ''}`}>
+                  <label>Jefes de proyecto</label>
+                  <MultiProfilePicker
+                    role="admin"
+                    value={form.jefes}
+                    onChange={(list) => setForm({ ...form, jefes: list })}
+                    invalid={!!formErrors.jefe}
+                  />
+                  {formErrors.jefe && <span className="field-error">{formErrors.jefe}</span>}
+                </div>
+                <div className={`modal-field${formErrors.responsable ? ' has-error' : ''}`}>
+                  <label>Persona asignada</label>
+                  <ProfilePicker
+                    role="desarrollador"
+                    value={form.responsable}
+                    onChange={(p) => setForm({ ...form, responsable: p })}
+                  />
+                  {formErrors.responsable && <span className="field-error">{formErrors.responsable}</span>}
                 </div>
                 <div className={`modal-field${formErrors.cliente ? ' has-error' : ''}`}>
                   <label>Clientes</label>
-                  <ClientsPicker
+                  <MultiProfilePicker
+                    role="cliente"
                     value={form.clientes}
                     onChange={(list) => setForm({ ...form, clientes: list })}
                     invalid={!!formErrors.cliente}
@@ -387,25 +400,29 @@ export default function ProjectsList() {
                 {editingProject.name}".
               </p>
               <div className="modal-fields">
-                <div className="modal-field-grid">
-                  <div className={`modal-field${editErrors.jefe ? ' has-error' : ''}`}>
-                    <label>Jefe de proyecto</label>
-                    <ProfilePicker role="admin" value={editForm.jefe} onChange={(p) => setEditForm({ ...editForm, jefe: p })} />
-                    {editErrors.jefe && <span className="field-error">{editErrors.jefe}</span>}
-                  </div>
-                  <div className={`modal-field${editErrors.responsable ? ' has-error' : ''}`}>
-                    <label>Persona asignada</label>
-                    <ProfilePicker
-                      role="desarrollador"
-                      value={editForm.responsable}
-                      onChange={(p) => setEditForm({ ...editForm, responsable: p })}
-                    />
-                    {editErrors.responsable && <span className="field-error">{editErrors.responsable}</span>}
-                  </div>
+                <div className={`modal-field${editErrors.jefe ? ' has-error' : ''}`}>
+                  <label>Jefes de proyecto</label>
+                  <MultiProfilePicker
+                    role="admin"
+                    value={editForm.jefes}
+                    onChange={(list) => setEditForm({ ...editForm, jefes: list })}
+                    invalid={!!editErrors.jefe}
+                  />
+                  {editErrors.jefe && <span className="field-error">{editErrors.jefe}</span>}
+                </div>
+                <div className={`modal-field${editErrors.responsable ? ' has-error' : ''}`}>
+                  <label>Persona asignada</label>
+                  <ProfilePicker
+                    role="desarrollador"
+                    value={editForm.responsable}
+                    onChange={(p) => setEditForm({ ...editForm, responsable: p })}
+                  />
+                  {editErrors.responsable && <span className="field-error">{editErrors.responsable}</span>}
                 </div>
                 <div className={`modal-field${editErrors.cliente ? ' has-error' : ''}`}>
                   <label>Clientes</label>
-                  <ClientsPicker
+                  <MultiProfilePicker
+                    role="cliente"
                     value={editForm.clientes}
                     onChange={(list) => setEditForm({ ...editForm, clientes: list })}
                     invalid={!!editErrors.cliente}
@@ -447,8 +464,10 @@ export default function ProjectsList() {
                 <div className="proj-name">{p.name}</div>
                 <div className="proj-meta">
                   <span className="proj-meta-item">
-                    <span className="proj-meta-label">Jefe</span>
-                    <span className="proj-meta-value">{p.jefeNombre ?? 'Sin asignar'}</span>
+                    <span className="proj-meta-label">{p.jefes.length > 1 ? 'Jefes' : 'Jefe'}</span>
+                    <span className="proj-meta-value">
+                      {p.jefes.length ? p.jefes.map((j) => j.nombre).join(', ') : 'Sin asignar'}
+                    </span>
                   </span>
                   <span className="proj-meta-item">
                     <span className="proj-meta-label">{p.clientes.length > 1 ? 'Clientes' : 'Cliente'}</span>

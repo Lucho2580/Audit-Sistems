@@ -1,20 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { ProfilesApi } from '../lib/services';
-import type { ProfileLite } from '../types/domain';
+import { ACTOR_ROLE_LABEL, type ProfileLite, type UserRole } from '../types/domain';
 import { initials } from './DirectorySearch';
 
 interface Props {
+  role: UserRole;
   value: ProfileLite[];
   onChange: (list: ProfileLite[]) => void;
   invalid?: boolean;
 }
 
-// Como ProfilePicker pero para varios clientes a la vez: un proyecto puede
-// tener más de un cliente (a diferencia de jefe/responsable, que son un solo
-// actor). Los ya elegidos quedan como chips removibles arriba del buscador,
-// que se queda siempre visible (no se reemplaza por el valor, como en
-// ProfilePicker de un solo valor).
-export default function ClientsPicker({ value, onChange, invalid }: Props) {
+// Como ProfilePicker pero para varios actores del mismo rol a la vez -- un
+// proyecto puede tener más de un jefe y más de un cliente (a diferencia de
+// responsable/proveedor, que son un solo actor). Los ya elegidos quedan como
+// chips removibles arriba del buscador, que se queda siempre visible (no se
+// reemplaza por el valor, como en ProfilePicker de un solo valor).
+export default function MultiProfilePicker({ role, value, onChange, invalid }: Props) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<ProfileLite[]>([]);
   const [loading, setLoading] = useState(false);
@@ -26,7 +27,7 @@ export default function ClientsPicker({ value, onChange, invalid }: Props) {
     debounceRef.current = window.setTimeout(async () => {
       setLoading(true);
       try {
-        setResults(await ProfilesApi.searchByRole('cliente', q.trim(), 20));
+        setResults(await ProfilesApi.searchByRole(role, q.trim(), 20));
       } catch {
         setResults([]);
       } finally {
@@ -36,7 +37,7 @@ export default function ClientsPicker({ value, onChange, invalid }: Props) {
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
-  }, [q]);
+  }, [q, role]);
 
   const selectedIds = new Set(value.map((v) => v.id));
   const visibleResults = results.filter((p) => !selectedIds.has(p.id));
@@ -51,10 +52,12 @@ export default function ClientsPicker({ value, onChange, invalid }: Props) {
     onChange(value.filter((v) => v.id !== id));
   }
 
+  const roleLabel = ACTOR_ROLE_LABEL[role].toLowerCase();
+
   return (
-    <div className="clients-picker">
+    <div className="multi-picker">
       {value.length > 0 && (
-        <div className="clients-picker-chips">
+        <div className="multi-picker-chips">
           {value.map((p) => (
             <span className="participant-chip" key={p.id}>
               {p.fullName ?? p.email}
@@ -70,11 +73,11 @@ export default function ClientsPicker({ value, onChange, invalid }: Props) {
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => setOpen(true)}
           onBlur={() => window.setTimeout(() => setOpen(false), 150)}
-          placeholder="Buscar cliente…"
+          placeholder={`Buscar ${roleLabel}…`}
         />
         {loading && <div className="directory-search-hint">Buscando…</div>}
         {open && !loading && visibleResults.length === 0 && (
-          <div className="directory-search-hint">No hay más cuentas con rol "Cliente" que coincidan.</div>
+          <div className="directory-search-hint">No hay más cuentas con rol "{ACTOR_ROLE_LABEL[role]}" que coincidan.</div>
         )}
         {open && visibleResults.length > 0 && (
           <div className="directory-search-results">

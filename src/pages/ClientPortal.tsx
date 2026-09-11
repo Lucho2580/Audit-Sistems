@@ -139,16 +139,33 @@ export default function ClientPortal() {
                     {docOpen && (
                       <div className="sign-document" style={{ margin: '0 4px 16px' }}>
                         {[
-                          ['Temas tratados', mt.topics],
-                          ['Acuerdos y compromisos', mt.agreements],
-                          ['Riesgos u observaciones', mt.risks],
-                          ['Próximos pasos', mt.nextSteps],
+                          ['Orden del día', mt.topics],
+                          ['Desarrollo de la reunión', mt.agreements],
+                          ['Observaciones', mt.risks],
                         ].map(([label, value]) => (
                           <div className="sign-document-field" key={label}>
                             <div className="sign-document-label">{label}</div>
                             <p>{value?.trim() || 'Sin registrar.'}</p>
                           </div>
                         ))}
+                        <div className="sign-document-field">
+                          <div className="sign-document-label">Compromisos</div>
+                          {mt.compromisos.length ? (
+                            <ul className="sign-document-compromisos">
+                              {mt.compromisos.map((c, i) => (
+                                <li key={i}>
+                                  {c.text}
+                                  <span className="sign-document-compromiso-meta">
+                                    {c.responsable ? ` · Responsable: ${c.responsable}` : ''}
+                                    {c.fechaLimite ? ` · Fecha límite: ${c.fechaLimite}` : ''}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p>Sin registrar.</p>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

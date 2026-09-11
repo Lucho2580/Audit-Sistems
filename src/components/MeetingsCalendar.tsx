@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { MeetingsApi, DailyNotesApi, ProfilesApi, ActasApi, type DirectoryUser } from '../lib/services';
 import { generateMeetingActaPdf } from '../lib/acta';
-import { MEETING_STATE_META, type DailyNote, type Meeting, type MeetingState, type Participant, type Project } from '../types/domain';
+import { MEETING_STATE_META, type Compromiso, type DailyNote, type Meeting, type MeetingState, type Participant, type Project } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
 import DirectorySearch from './DirectorySearch';
 
@@ -92,7 +92,7 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
   // actores fijos del proyecto -- quien no coincide con ninguno es un
   // invitado externo agregado a mano o desde Entra ID.
   function roleForParticipant(label: string): string {
-    if (label === project.jefeNombre) return 'Jefe de proyecto';
+    if (project.jefes.some((j) => j.nombre === label)) return 'Jefe de proyecto';
     if (label === project.responsableNombre) return 'Persona asignada';
     if (label === project.proveedor) return 'Proveedor';
     if (project.clientes.some((c) => c.nombre === label)) return 'Cliente';
@@ -109,8 +109,8 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
   // su correo real: es quien firma desde su portal.
   const fixedParticipants = useMemo<DirectoryUser[]>(() => {
     const fixed: DirectoryUser[] = [];
-    if (project.jefeId && project.jefeNombre) {
-      fixed.push({ id: project.jefeId, name: project.jefeNombre, email: actorEmails[project.jefeId] ?? '' });
+    for (const jefe of project.jefes) {
+      fixed.push({ id: jefe.id, name: jefe.nombre, email: actorEmails[jefe.id] ?? '' });
     }
     if (project.responsableId && project.responsableNombre) {
       fixed.push({ id: project.responsableId, name: project.responsableNombre, email: actorEmails[project.responsableId] ?? '' });
@@ -123,12 +123,12 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
     }
     return fixed;
   }, [
-    project.jefeId, project.jefeNombre, project.responsableId, project.responsableNombre,
+    project.jefes, project.responsableId, project.responsableNombre,
     project.proveedorId, project.proveedor, project.clientes, actorEmails,
   ]);
 
   async function loadActorEmails() {
-    const ids = [project.jefeId, project.responsableId, ...project.clientes.map((c) => c.id)].filter((id): id is string => !!id);
+    const ids = [...project.jefes.map((j) => j.id), project.responsableId, ...project.clientes.map((c) => c.id)].filter((id): id is string => !!id);
     if (!ids.length) return;
     try {
       const profiles = await ProfilesApi.getMany(ids);
@@ -246,6 +246,11 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
     onChanged();
   }
 
+  async function setAttendance(participantId: string, attended: boolean) {
+    await MeetingsApi.setAttendance(participantId, attended);
+    onChanged();
+  }
+
   // Guarda el documento y manda el aviso de firma a los participantes (en
   // vez de solo generar un PDF local) -- así la persona asignada dispara la
   // notificación justo cuando el acta ya quedó redactada como quiere, sin
@@ -257,7 +262,7 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
       topics: draft.topics ?? mt.topics,
       agreements: draft.agreements ?? mt.agreements,
       risks: draft.risks ?? mt.risks,
-      nextSteps: draft.nextSteps ?? mt.nextSteps,
+      compromisos: draft.compromisos ?? mt.compromisos,
     });
     onChanged();
     setNotifying(mt.id);
@@ -280,6 +285,30 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
     } finally {
       setNotifying(null);
     }
+  }
+
+  // Cada compromiso queda con su propio responsable y fecha límite (en vez
+  // de una sola línea de texto libre) para que la tabla de "Compromisos" del
+  // acta pueda mostrarlos de verdad, en vez de "—" en esas dos columnas.
+  function addCompromiso(mt: Meeting) {
+    const current = docDrafts[mt.id]?.compromisos ?? mt.compromisos;
+    setDocDrafts((d) => ({
+      ...d,
+      [mt.id]: { ...d[mt.id], compromisos: [...current, { text: '', responsable: null, fechaLimite: null }] },
+    }));
+  }
+
+  function updateCompromiso(mt: Meeting, index: number, next: Compromiso) {
+    const current = docDrafts[mt.id]?.compromisos ?? mt.compromisos;
+    const list = current.slice();
+    list[index] = next;
+    setDocDrafts((d) => ({ ...d, [mt.id]: { ...d[mt.id], compromisos: list } }));
+  }
+
+  function removeCompromiso(mt: Meeting, index: number) {
+    const current = docDrafts[mt.id]?.compromisos ?? mt.compromisos;
+    const list = current.filter((_, i) => i !== index);
+    setDocDrafts((d) => ({ ...d, [mt.id]: { ...d[mt.id], compromisos: list } }));
   }
 
   async function addDailyNote() {
@@ -822,20 +851,53 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
                 {docOpen && (
                   <div className="meeting-doc">
                     <div className="hu-section-head">
-                      <span className="hu-tag">Tem</span>
-                      <h3>Temas tratados</h3>
+                      <span className="hu-tag">Asi</span>
+                      <h3>Asistencia</h3>
+                    </div>
+                    <div className="attendance-editor">
+                      {mt.participants.length ? (
+                        ROLE_ORDER.map((role) => {
+                          const inRole = mt.participants.filter((p) => roleForParticipant(p.label) === role);
+                          if (!inRole.length) return null;
+                          return (
+                            <div className="participant-role-row" key={role}>
+                              <span className="participant-role-label">{role}</span>
+                              <span className="participant-role-chips">
+                                {inRole.map((p) => (
+                                  <button
+                                    type="button"
+                                    key={p.id}
+                                    className={`attendance-chip ${p.attended ? 'present' : 'absent'}`}
+                                    title={p.attended ? 'Marcar como no asistió' : 'Marcar como asistió'}
+                                    onClick={() => setAttendance(p.id, !p.attended)}
+                                  >
+                                    {p.attended ? '✓' : '×'} {p.label}
+                                  </button>
+                                ))}
+                              </span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <span className="participant-empty">Sin participantes agregados</span>
+                      )}
+                    </div>
+
+                    <div className="hu-section-head">
+                      <span className="hu-tag">Odd</span>
+                      <h3>Orden del día</h3>
                     </div>
                     <textarea
                       className="hu-textarea"
                       rows={3}
                       value={draft.topics}
                       onChange={(e) => setDocDrafts((d) => ({ ...d, [mt.id]: { ...d[mt.id], topics: e.target.value } }))}
-                      placeholder="Puntos revisados en la reunión…"
+                      placeholder="Puntos a tratar (uno por línea)…"
                     />
 
                     <div className="hu-section-head">
-                      <span className="hu-tag">Acu</span>
-                      <h3>Acuerdos y compromisos</h3>
+                      <span className="hu-tag">Des</span>
+                      <h3>Desarrollo de la reunión</h3>
                     </div>
                     <textarea
                       className="hu-textarea"
@@ -845,33 +907,57 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
                       placeholder="Qué se acordó y qué se decidió…"
                     />
 
-                    <div className="hu-grid-2">
-                      <div>
-                        <div className="hu-section-head">
-                          <span className="hu-tag">Rie</span>
-                          <h3>Riesgos u observaciones</h3>
-                        </div>
-                        <textarea
-                          className="hu-textarea"
-                          rows={3}
-                          value={draft.risks}
-                          onChange={(e) => setDocDrafts((d) => ({ ...d, [mt.id]: { ...d[mt.id], risks: e.target.value } }))}
-                          placeholder="Riesgos u observaciones…"
-                        />
+                    <div className="hu-section-head">
+                      <span className="hu-tag">Obs</span>
+                      <h3>Observaciones</h3>
+                    </div>
+                    <textarea
+                      className="hu-textarea"
+                      rows={3}
+                      value={draft.risks}
+                      onChange={(e) => setDocDrafts((d) => ({ ...d, [mt.id]: { ...d[mt.id], risks: e.target.value } }))}
+                      placeholder="Riesgos u observaciones…"
+                    />
+
+                    <div className="hu-section-head">
+                      <span className="hu-tag">Com</span>
+                      <h3>Compromisos</h3>
+                    </div>
+                    <div className="compromisos-editor">
+                      <div className="compromiso-row compromiso-head">
+                        <span>Compromiso</span>
+                        <span>Responsable</span>
+                        <span>Fecha límite</span>
+                        <span />
                       </div>
-                      <div>
-                        <div className="hu-section-head">
-                          <span className="hu-tag">Pas</span>
-                          <h3>Próximos pasos</h3>
+                      {draft.compromisos.map((c, i) => (
+                        <div className="compromiso-row" key={i}>
+                          <input
+                            type="text"
+                            value={c.text}
+                            placeholder="Compromiso…"
+                            onChange={(e) => updateCompromiso(mt, i, { ...c, text: e.target.value })}
+                          />
+                          <select
+                            value={c.responsable ?? ''}
+                            onChange={(e) => updateCompromiso(mt, i, { ...c, responsable: e.target.value || null })}
+                          >
+                            <option value="">Responsable…</option>
+                            {mt.participants.map((p) => (
+                              <option key={p.id} value={p.label}>{p.label}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="date"
+                            value={c.fechaLimite ?? ''}
+                            onChange={(e) => updateCompromiso(mt, i, { ...c, fechaLimite: e.target.value || null })}
+                          />
+                          <button type="button" title="Quitar compromiso" onClick={() => removeCompromiso(mt, i)}>×</button>
                         </div>
-                        <textarea
-                          className="hu-textarea"
-                          rows={3}
-                          value={draft.nextSteps}
-                          onChange={(e) => setDocDrafts((d) => ({ ...d, [mt.id]: { ...d[mt.id], nextSteps: e.target.value } }))}
-                          placeholder="Compromisos para la siguiente iteración…"
-                        />
-                      </div>
+                      ))}
+                      <button type="button" className="btn small ghost" onClick={() => addCompromiso(mt)}>
+                        + Agregar compromiso
+                      </button>
                     </div>
 
                     <div className="actions">

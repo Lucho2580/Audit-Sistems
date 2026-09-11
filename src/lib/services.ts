@@ -3,14 +3,14 @@ import { SITE_URL } from './site';
 import { computeProjectStats } from '../types/domain';
 import type {
   Project, Meeting, AuditLogEntry, ItemResponsible, ProjectStatus, MeetingState,
-  Provider, ProjectPhase, DailyNote, ProfileLite, UserRole,
+  Provider, ProjectPhase, DailyNote, ProfileLite, UserRole, Compromiso,
 } from '../types/domain';
 
 const PROJECT_SELECT = `
   id, code, name, proveedor, status, createdAt:created_at,
   deliveryDate:delivery_date, finalDeliveryDate:final_delivery_date,
   delayDays:delay_days, finalObservation:final_observation,
-  jefeId:jefe_id, jefeNombre:jefe_nombre,
+  jefes:project_jefes ( id:jefe_id, nombre:jefe_nombre ),
   responsableId:responsable_id, responsableNombre:responsable_nombre,
   proveedorId:proveedor_id,
   clientes:project_clients ( id:cliente_id, nombre:cliente_nombre ),
@@ -28,9 +28,9 @@ const PROJECT_SELECT = `
 // consulta general que ve cualquiera con acceso a la reunión — se obtiene aparte, uno
 // por uno y solo bajo demanda, con MeetingsApi.getSignLink().
 const MEETING_SELECT = `
-  id, date, time, title, state, topics, agreements, risks, nextSteps:next_steps, projectId:project_id,
+  id, date, time, title, state, topics, agreements, risks, compromisos, projectId:project_id,
   teamsJoinUrl:teams_join_url, modalidad,
-  participants ( id, label, email, signature, signedAt:signed_at )
+  participants ( id, label, email, signature, signedAt:signed_at, attended )
 `;
 
 function normalizeProject(project: Project): Project {
@@ -98,20 +98,29 @@ export const ProjectsApi = {
     return throwIfError<{ id: string }>(res as any);
   },
 
-  // Asigna/reasigna jefe/responsable/proveedor. Se llama justo después de
+  // Asigna/reasigna responsable/proveedor. Se llama justo después de
   // create() -- mismo patrón de dos pasos que ya usa MeetingsApi.create() ->
-  // createTeamsMeeting(). Los clientes (puede haber varios) se manejan
-  // aparte con addClient()/removeClient().
+  // createTeamsMeeting(). Jefes y clientes (puede haber varios de cada uno)
+  // se manejan aparte con add/removeJefe() y add/removeClient().
   async setActors(
     projectId: string,
-    payload: { jefeId: string; responsableId: string; proveedorId: string },
+    payload: { responsableId: string; proveedorId: string },
   ): Promise<void> {
     const res = await supabase.rpc('set_project_actors', {
       p_project_id: projectId,
-      p_jefe_id: payload.jefeId,
       p_responsable_id: payload.responsableId,
       p_proveedor_id: payload.proveedorId,
     });
+    throwIfError(res as any);
+  },
+
+  async addJefe(projectId: string, jefeId: string): Promise<void> {
+    const res = await supabase.rpc('add_project_jefe', { p_project_id: projectId, p_jefe_id: jefeId });
+    throwIfError(res as any);
+  },
+
+  async removeJefe(projectId: string, jefeId: string): Promise<void> {
+    const res = await supabase.rpc('remove_project_jefe', { p_project_id: projectId, p_jefe_id: jefeId });
     throwIfError(res as any);
   },
 
@@ -209,7 +218,7 @@ export interface SignStatus {
   topics: string;
   agreements: string;
   risks: string;
-  nextSteps: string;
+  compromisos: Compromiso[];
 }
 
 export const MeetingsApi = {
@@ -253,13 +262,13 @@ export const MeetingsApi = {
 
   async updateDoc(
     meetingId: string,
-    payload: Partial<{ topics: string; agreements: string; risks: string; nextSteps: string }>,
+    payload: Partial<{ topics: string; agreements: string; risks: string; compromisos: Compromiso[] }>,
   ) {
     const res = await supabase
       .from('meetings')
       .update({
         topics: payload.topics, agreements: payload.agreements,
-        risks: payload.risks, next_steps: payload.nextSteps,
+        risks: payload.risks, compromisos: payload.compromisos,
       })
       .eq('id', meetingId)
       .select(MEETING_SELECT)
@@ -305,7 +314,7 @@ export const MeetingsApi = {
       label: string; already_signed: boolean; expired: boolean;
       project_name: string; project_code: string;
       meeting_title: string; meeting_date: string;
-      topics: string; agreements: string; risks: string; next_steps: string;
+      topics: string; agreements: string; risks: string; compromisos: Compromiso[] | null;
     }[]>(res as any);
     const row = rows?.[0];
     if (!row) return null;
@@ -313,7 +322,7 @@ export const MeetingsApi = {
       label: row.label, alreadySigned: row.already_signed, expired: row.expired,
       projectName: row.project_name, projectCode: row.project_code,
       meetingTitle: row.meeting_title, meetingDate: row.meeting_date,
-      topics: row.topics, agreements: row.agreements, risks: row.risks, nextSteps: row.next_steps,
+      topics: row.topics, agreements: row.agreements, risks: row.risks, compromisos: row.compromisos ?? [],
     };
   },
 
@@ -343,6 +352,13 @@ export const MeetingsApi = {
 
   async removeParticipant(participantId: string) {
     const res = await supabase.from('participants').delete().eq('id', participantId);
+    throwIfError(res as any);
+  },
+
+  async setAttendance(participantId: string, attended: boolean) {
+    const res = await supabase.rpc('set_participant_attendance', {
+      p_participant_id: participantId, p_attended: attended,
+    });
     throwIfError(res as any);
   },
 
