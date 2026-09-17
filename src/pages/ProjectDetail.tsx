@@ -7,6 +7,7 @@ import MeetingsCalendar from '../components/MeetingsCalendar';
 import AuditHistoryPanel from '../components/AuditHistoryPanel';
 import RoadmapPhases from '../components/RoadmapPhases';
 import DeliveryPanel from '../components/DeliveryPanel';
+import WeeklyProgressPanel from '../components/WeeklyProgressPanel';
 import { ProjectsApi, MeetingsApi, PhasesApi, DailyNotesApi } from '../lib/services';
 import { generateProjectReportPdf } from '../lib/pdf';
 import {
@@ -147,6 +148,24 @@ export default function ProjectDetail() {
             onChanged={load}
           />
         ))}
+
+      {/* Solo jefe de proyecto/superadmin ve este panel (indicador + historial) --
+          la persona asignada solo interactúa con el reporte semanal a través
+          del modal bloqueante (WeeklyProgressGate). "Completo" = status
+          'cerrado' únicamente -- antes también se apagaba con checklist al
+          100%, pero esa regla solo vivía aquí (el modal bloqueante no la
+          conocía, porque list_weekly_progress_overview no trae el % del
+          checklist), así que un proyecto al 100% sin cerrar formalmente
+          dejaba de pedirse el reporte en esta pantalla pero lo seguía
+          exigiendo el modal -- inconsistente. Ahora solo "Cerrado" apaga
+          ambos lados. */}
+      {canEdit && (
+        <WeeklyProgressPanel
+          projectId={project.id}
+          canFill={canEdit}
+          isComplete={project.status === 'cerrado'}
+        />
+      )}
 
       <RoadmapPhases phases={phases} canEdit={canEdit} onChanged={load} />
 

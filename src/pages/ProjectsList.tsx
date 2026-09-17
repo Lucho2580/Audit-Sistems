@@ -4,6 +4,7 @@ import AppShell from '../components/AppShell';
 import ProjectsDashboard from '../components/ProjectsDashboard';
 import ProfilePicker from '../components/ProfilePicker';
 import MultiProfilePicker from '../components/MultiProfilePicker';
+import ProjectImportModal from '../components/ProjectImportModal';
 import { useSidebarStats, useDashboardToggle } from '../context/ShellChromeContext';
 import { ProjectsApi, ProvidersApi } from '../lib/services';
 import { exportProjectsCsv, downloadCsvTemplate } from '../lib/csv';
@@ -35,6 +36,7 @@ export default function ProjectsList() {
   const [editForm, setEditForm] = useState<ActorForm>(EMPTY_FORM);
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [savingActors, setSavingActors] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   // MyOffice es el único proveedor interno (sin cuenta, sin selector) -- se
   // resuelve una vez y se manda solo, en vez de pedirle al usuario que elija
   // entre proveedores que ya no existen como opción.
@@ -289,12 +291,25 @@ export default function ProjectsList() {
             Exportar CSV ↓
           </button>
           {canCreate && (
+            <button className="btn ghost small" onClick={() => setShowImport(true)}>
+              Importar desde Excel
+            </button>
+          )}
+          {canCreate && (
             <button className="btn" onClick={() => setShowIntake((s) => !s)}>
               + Nuevo proyecto
             </button>
           )}
         </div>
       </div>
+
+      {showImport && (
+        <ProjectImportModal
+          myOfficeProviderId={myOfficeProviderId}
+          onClose={() => setShowImport(false)}
+          onImported={load}
+        />
+      )}
 
       {showIntake && (
         <div className="modal-overlay" onClick={() => setShowIntake(false)}>

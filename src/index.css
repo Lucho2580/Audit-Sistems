@@ -137,6 +137,16 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .modal-info-icon{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;flex:none;border:1px solid var(--brand-strong);border-radius:var(--radius-md);color:var(--brand-strong);}
 .modal-info-value{font-family:'Fraunces',serif;font-size:19px;margin-top:2px;}
 .modal-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:18px 30px 24px;border-top:1px solid var(--hairline-strong);}
+.modal-card.modal-card-wide{max-width:920px;}
+
+/* ---- Importación masiva de proyectos ---- */
+.import-actions{display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap;}
+.import-table{background:var(--card);border:1px solid var(--hairline);margin-bottom:14px;max-height:340px;overflow-y:auto;}
+.import-row{display:grid;grid-template-columns:56px 1.3fr 1.2fr 1.1fr 1.2fr 110px;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--hairline);font-size:12.5px;}
+.import-row:last-child{border-bottom:none;}
+.import-row.head{position:sticky;top:0;background:var(--paper);font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);z-index:1;}
+.import-row.error:not(.head){background:var(--danger-bg);}
+.import-error-list{margin:0 0 18px;padding-left:18px;font-size:12px;color:var(--danger);line-height:1.7;}
 .modal-foot-hint{font-size:11.5px;color:var(--slate);font-style:italic;}
 .modal-foot-actions{display:flex;align-items:center;gap:10px;}
 
@@ -203,6 +213,80 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .percent-select.pendiente{background:var(--rust-bg);color:var(--rust);border-color:var(--rust);}
 .percent-select.progreso{background:var(--gold-bg);color:var(--gold);border-color:var(--gold);}
 .percent-select.completo{background:var(--green-bg);color:var(--green);border-color:var(--green);}
+
+.weekly-indicator{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;padding:4px 12px;border-radius:var(--radius-pill);border:1px solid;white-space:nowrap;}
+.weekly-indicator.tone-green{background:var(--green-bg);color:var(--green);border-color:var(--green);}
+.weekly-indicator.tone-gold{background:var(--gold-bg);color:var(--gold);border-color:var(--gold);}
+.weekly-indicator.tone-rust{background:var(--rust-bg);color:var(--rust);border-color:var(--rust);}
+.weekly-indicator.tone-slate{background:var(--paper);color:var(--slate);border-color:var(--hairline);}
+.weekly-fill{padding:16px 22px;border-bottom:1px solid var(--hairline);}
+.weekly-fill-row{display:flex;align-items:center;gap:10px;margin:10px 0;}
+.weekly-fill-summary{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;color:var(--ink-soft);flex-wrap:wrap;}
+.weekly-fill-actions{display:flex;gap:8px;}
+.weekly-fill textarea{width:100%;min-height:70px;padding:8px 10px;border:1px solid var(--hairline);background:var(--paper);font-size:13px;color:var(--ink);resize:vertical;margin-bottom:10px;font-family:inherit;}
+.weekly-history{padding:16px 22px 20px;}
+.weekly-overview-row{display:grid;grid-template-columns:110px 1.6fr 1fr 110px 150px;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--hairline);}
+.weekly-overview-row:last-child{border-bottom:none;}
+.weekly-overview-row.head{background:var(--paper);font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--slate);}
+.weekly-week-status{font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;padding:3px 9px;border-radius:var(--radius-pill);border:1px solid;white-space:nowrap;}
+.weekly-week-status.tone-green{background:var(--green-bg);color:var(--green);border-color:var(--green);}
+.weekly-week-status.tone-gold{background:var(--gold-bg);color:var(--gold);border-color:var(--gold);}
+.weekly-week-status.tone-rust{background:var(--rust-bg);color:var(--rust);border-color:var(--rust);}
+.weekly-week-status.tone-blue{background:var(--blue-bg);color:var(--blue);border-color:var(--blue);}
+
+/* ---- Detalle por proyecto (panel de admin) ---- */
+.weekly-detail-head{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px 22px;border-top:2px solid var(--brand);background:var(--card);font-size:13px;flex-wrap:wrap;}
+.weekly-detail{padding:20px 22px 24px;border-top:1px solid var(--hairline);background:var(--paper);}
+
+/* Encabezado: mismo lenguaje que las .kpi (label mono + número Fraunces) en
+   vez de una píldora flotando sola junto al párrafo. */
+.weekly-detail-summary{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap;margin-bottom:24px;padding-bottom:22px;border-bottom:1px solid var(--hairline);}
+.weekly-detail-kpi{flex:0 0 auto;}
+.weekly-detail-kpi .label{font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--slate);margin-bottom:6px;}
+.weekly-detail-kpi .value{font-family:'Fraunces',serif;font-size:34px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1;}
+.weekly-detail-kpi .value.tone-green{color:var(--green);}
+.weekly-detail-kpi .value.tone-gold{color:var(--gold);}
+.weekly-detail-kpi .value.tone-rust{color:var(--rust);}
+.weekly-detail-explain{margin:2px 0 0;font-size:13px;color:var(--ink-soft);max-width:56ch;line-height:1.65;flex:1 1 320px;}
+.weekly-detail-explain b{color:var(--ink);}
+
+/* Dos tarjetas lado a lado, igual que .dashboard-grid del panel de proyectos. */
+.weekly-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--hairline);border:1px solid var(--hairline);}
+.weekly-detail-grid .dash-card-title{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+
+/* Franja semana a semana: celdas planas tipo heatmap, sin borde grueso ni
+   aspecto de botón -- el color hace de fondo, el ícono nunca depende solo
+   de él. */
+.weekly-strip{display:flex;flex-wrap:wrap;gap:3px;}
+.weekly-cell{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:var(--radius-sm);font-size:11px;font-weight:700;line-height:1;padding:0;font-family:inherit;}
+.weekly-cell.sm{width:14px;height:14px;font-size:0;flex-shrink:0;cursor:default;}
+.weekly-cell:not(.sm){cursor:pointer;border:1.5px solid transparent;}
+.weekly-cell:not(.sm):hover{opacity:.85;}
+.weekly-cell:not(.sm).selected{border-color:var(--ink);box-shadow:0 0 0 2px var(--card),0 0 0 3px var(--ink);}
+.weekly-cell.tone-green{background:var(--green);color:#fff;}
+.weekly-cell.tone-rust{background:var(--rust);color:#fff;}
+.weekly-cell.tone-blue{background:var(--card);color:var(--blue);border-color:var(--blue);border-style:dashed;}
+.weekly-strip-legend{display:flex;gap:6px;font-size:10.5px;color:var(--slate);}
+.weekly-strip-legend-item{display:inline-flex;align-items:center;gap:4px;}
+
+.weekly-week-detail{margin-top:16px;padding-top:16px;border-top:1px dashed var(--hairline);}
+.weekly-week-detail-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
+.weekly-week-detail-date{font-family:'Fraunces',serif;font-size:15px;font-weight:600;text-transform:capitalize;}
+.weekly-week-detail-note{margin:0;font-size:13px;color:var(--ink-soft);line-height:1.6;}
+
+/* Tendencia de avance: mismas clases que el bar-chart horizontal del
+   dashboard de proyectos (bar-track2/bar-fill2), no un widget nuevo. */
+.weekly-trend-row{display:grid;grid-template-columns:56px 1fr 34px;align-items:center;gap:10px;}
+.weekly-trend-row + .weekly-trend-row{margin-top:9px;}
+.weekly-trend-label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);white-space:nowrap;}
+.weekly-trend-value{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);text-align:right;font-variant-numeric:tabular-nums;}
+
+/* fila de la tabla overview: se puede seleccionar para ver el detalle */
+.weekly-overview-row.selected{background:var(--brand-bg);}
+
+@media (max-width:720px){
+  .weekly-detail-grid{grid-template-columns:1fr;}
+}
 
 .hist-btn{display:inline-flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;background:none;border:1px solid var(--hairline-strong);color:var(--slate);padding:4px 9px;border-radius:var(--radius-md);cursor:pointer;white-space:nowrap;}
 .hist-btn:hover{border-color:var(--ink);color:var(--ink);}

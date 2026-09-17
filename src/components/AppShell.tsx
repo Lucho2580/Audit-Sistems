@@ -32,6 +32,12 @@ function ShellSidebar() {
           </NavLink>
         )}
         {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
+          <NavLink to="/informe-semanal" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <span>Informe semanal</span>
+            <span className="mark">·</span>
+          </NavLink>
+        )}
+        {(profile?.role === 'admin' || profile?.role === 'superadmin') && (
           <NavLink to="/tools" className={({ isActive }) => (isActive ? 'active' : '')}>
             <span>Herramientas</span>
             <span className="mark">·</span>

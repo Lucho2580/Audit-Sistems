@@ -4,6 +4,7 @@ import { computeProjectStats } from '../types/domain';
 import type {
   Project, Meeting, AuditLogEntry, ItemResponsible, ProjectStatus, MeetingState,
   Provider, ProjectPhase, DailyNote, ProfileLite, UserRole, Compromiso,
+  WeeklyProgressEntry, WeeklyProgressOverviewRow, WeeklyProgressDetail,
 } from '../types/domain';
 
 const PROJECT_SELECT = `
@@ -490,6 +491,16 @@ export const ProfilesApi = {
     const rows = throwIfError<{ id: string; email: string; full_name: string | null; role: UserRole }[]>(res as any);
     return rows.map((r) => ({ id: r.id, email: r.email, fullName: r.full_name, role: r.role }));
   },
+
+  // Resuelve varios correos de una sola vez contra cuentas reales de un rol
+  // dado -- lo usa la importación masiva de proyectos para validar cada
+  // columna (jefes/persona asignada/clientes) sin un viaje por celda.
+  async findByEmail(emails: string[], role: UserRole): Promise<ProfileLite[]> {
+    if (!emails.length) return [];
+    const res = await supabase.rpc('find_profiles_by_email', { p_emails: emails, p_role: role });
+    const rows = throwIfError<{ email: string; id: string; full_name: string | null }[]>(res as any);
+    return rows.map((r) => ({ id: r.id, email: r.email, fullName: r.full_name, role }));
+  },
 };
 
 export interface AdminCreatedUser {
@@ -550,6 +561,63 @@ export const AuthApi = {
   async clearMustChangePassword(): Promise<void> {
     const res = await supabase.rpc('clear_must_change_password');
     throwIfError(res as any);
+  },
+};
+
+// Informe semanal de avance por proyecto + indicador de cumplimiento. Solo
+// admin/superadmin/persona-asignada tienen acceso (RLS vía can_manage_project);
+// el cliente no participa de este flujo.
+export const WeeklyProgressApi = {
+  async listForProject(projectId: string): Promise<WeeklyProgressEntry[]> {
+    const res = await supabase
+      .from('project_weekly_progress')
+      .select(
+        'id, projectId:project_id, weekStart:week_start, percentAvanzado:percent_avanzado, ' +
+          'note, submittedAt:submitted_at',
+      )
+      .eq('project_id', projectId)
+      .order('week_start', { ascending: false });
+    return throwIfError<WeeklyProgressEntry[]>(res as any);
+  },
+
+  // Reporta lo avanzado en la semana EN CURSO (no un acumulado). El servidor
+  // rechaza el envío si ya pasó el plazo (sábado 12:00pm hora Colombia) o si
+  // quien llama no puede gestionar el proyecto.
+  async submit(projectId: string, percent: number, note: string): Promise<void> {
+    const res = await supabase.rpc('submit_weekly_progress', {
+      p_project_id: projectId, p_percent: percent, p_note: note,
+    });
+    throwIfError(res as any);
+  },
+
+  async getIndicator(projectId: string): Promise<number> {
+    const res = await supabase.rpc('get_weekly_indicator', { p_project_id: projectId });
+    return Number(throwIfError<number>(res as any));
+  },
+
+  // Desglose semana a semana (para el panel de detalle del admin: explica por
+  // qué el indicador quedó en ese valor, no solo el número).
+  async getDetail(projectId: string): Promise<WeeklyProgressDetail> {
+    const res = await supabase.rpc('get_weekly_progress_detail', { p_project_id: projectId });
+    const data = throwIfError<WeeklyProgressDetail>(res as any);
+    return data;
+  },
+
+  // Para el panel de admin/superadmin: todos los proyectos visibles con su
+  // indicador y si ya se reportó la semana en curso, en una sola llamada.
+  async listOverview(): Promise<WeeklyProgressOverviewRow[]> {
+    const res = await supabase.rpc('list_weekly_progress_overview');
+    const rows = throwIfError<{
+      project_id: string; code: string; name: string; status: ProjectStatus;
+      responsable_nombre: string | null; indicator: number;
+      current_week_start: string; current_week_submitted: boolean; current_week_deadline: string;
+    }[]>(res as any);
+    return rows.map((r) => ({
+      projectId: r.project_id, code: r.code, name: r.name, status: r.status,
+      responsableNombre: r.responsable_nombre, indicator: Number(r.indicator),
+      currentWeekStart: r.current_week_start, currentWeekSubmitted: r.current_week_submitted,
+      currentWeekDeadline: r.current_week_deadline,
+    }));
   },
 };
 

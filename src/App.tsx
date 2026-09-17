@@ -8,7 +8,9 @@ import ClientPortal from './pages/ClientPortal';
 import SignPage from './pages/SignPage';
 import TimelinePage from './pages/TimelinePage';
 import ToolsPage from './pages/ToolsPage';
+import WeeklyProgressDashboard from './pages/WeeklyProgressDashboard';
 import ForceChangePassword from './pages/ForceChangePassword';
+import WeeklyProgressGate from './components/WeeklyProgressGate';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { session, profile, loading } = useAuth();
@@ -34,7 +36,11 @@ function HomeRoute() {
 
 export default function App() {
   return (
-    <Routes>
+    // Envuelve TODAS las rutas una sola vez -- así el chequeo del reporte
+    // semanal pendiente no se repite en cada navegación (PrivateRoute sí se
+    // remonta por cada <Route>, este wrapper no).
+    <WeeklyProgressGate>
+      <Routes>
       {/* Ruta pública: firma de actas vía enlace con token, sin necesidad de cuenta */}
       <Route path="/sign/:token" element={<SignPage />} />
       <Route path="/login" element={<Login />} />
@@ -77,7 +83,18 @@ export default function App() {
           </PrivateRoute>
         }
       />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      <Route
+        path="/informe-semanal"
+        element={
+          <PrivateRoute>
+            <StaffOnlyRoute>
+              <WeeklyProgressDashboard />
+            </StaffOnlyRoute>
+          </PrivateRoute>
+        }
+      />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </WeeklyProgressGate>
   );
 }

@@ -219,3 +219,62 @@ export function computeProjectStats(project: Pick<Project, 'sections'>): Stats {
   const allItems = project.sections.flatMap((s) => s.items);
   return computeItemStats(allItems);
 }
+
+// ---- Informe semanal de avance ---------------------------------------------
+
+export interface WeeklyProgressEntry {
+  id: string;
+  projectId: string;
+  weekStart: string; // fecha ISO del lunes de esa semana
+  percentAvanzado: number;
+  note: string;
+  submittedAt: string;
+}
+
+export interface WeeklyProgressWeek {
+  weekStart: string;
+  status: 'reportado' | 'perdida' | 'en_curso';
+  percentAvanzado: number | null;
+  note: string | null;
+}
+
+export interface WeeklyProgressDetail {
+  indicator: number;
+  weeksTracked: number;
+  weeksReported: number;
+  weeksMissed: number;
+  penaltyPerWeek: number;
+  weeksRemainingYear: number;
+  frozen: boolean;
+  weeks: WeeklyProgressWeek[];
+}
+
+export interface WeeklyProgressOverviewRow {
+  projectId: string;
+  code: string;
+  name: string;
+  status: ProjectStatus;
+  responsableNombre: string | null;
+  indicator: number;
+  currentWeekStart: string;
+  currentWeekSubmitted: boolean;
+  currentWeekDeadline: string;
+}
+
+const BOGOTA_OFFSET_MS = 5 * 3600000; // Colombia: UTC-5 todo el año, sin horario de verano.
+
+// Ventana de la semana en curso (lunes a sábado 12:00pm, hora Bogotá), para
+// mostrar el estado en pantalla. La validación real de la ventana siempre la
+// hace el servidor (submit_weekly_progress) -- esto es solo para la UI.
+export function currentWeekWindow(now: Date = new Date()): { weekStart: string; deadline: Date; isOpen: boolean } {
+  const bogotaNow = new Date(now.getTime() - BOGOTA_OFFSET_MS);
+  const dayOfWeek = bogotaNow.getUTCDay(); // 0=domingo … 6=sábado
+  const daysSinceMonday = (dayOfWeek + 6) % 7;
+  const mondayBogotaMidnightUTC = Date.UTC(
+    bogotaNow.getUTCFullYear(), bogotaNow.getUTCMonth(), bogotaNow.getUTCDate() - daysSinceMonday,
+  );
+  const weekStart = new Date(mondayBogotaMidnightUTC).toISOString().slice(0, 10);
+  // Sábado 12:00pm hora Bogotá = lunes + 5 días + 12h, reconvertido a UTC real.
+  const deadline = new Date(mondayBogotaMidnightUTC + 5 * 86400000 + 12 * 3600000 + BOGOTA_OFFSET_MS);
+  return { weekStart, deadline, isOpen: now.getTime() <= deadline.getTime() };
+}
