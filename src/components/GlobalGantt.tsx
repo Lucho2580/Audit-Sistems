@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DELAY_STATUS_META, taskDelayStatus, type DelayStatus, type Project } from '../types/domain';
 
@@ -9,9 +9,12 @@ interface Props {
 const STATUS_COLOR: Record<DelayStatus, string> = {
   completado: 'var(--green)', en_tiempo: 'var(--blue)', en_riesgo: 'var(--gold)', atrasado: 'var(--rust)',
 };
-const LABEL_COL = 220;
+const LABEL_COL = 260;
 const DAY_MS = 86400000;
-const DAY_W = 8;
+// Con 65 proyectos los rangos pueden cubrir 2+ años -- una escala más
+// angosta que el Gantt de un solo proyecto para que se alcance a ver la
+// mayoría sin desplazar tanto horizontalmente.
+const DAY_W = 3;
 const MONTH_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
 // Gantt de portafolio (ítem "diagrama de Gantt general de todos los
@@ -21,6 +24,7 @@ const MONTH_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'se
 // solo de solo lectura (sin arrastrar), clic en una fila navega al detalle.
 export default function GlobalGantt({ projects }: Props) {
   const navigate = useNavigate();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const ranges = useMemo(
     () =>
@@ -69,6 +73,14 @@ export default function GlobalGantt({ projects }: Props) {
     return Math.round((now - originTime) / DAY_MS) * DAY_W;
   }, [originTime, totalDays]);
 
+  // Con tantos proyectos el track puede ser mucho más ancho que la pantalla
+  // -- arranca centrado en "hoy" en vez de en el extremo izquierdo (el
+  // proyecto más antiguo), que es lo más probable que quiera ver primero.
+  useEffect(() => {
+    if (todayLeftPx === null || !scrollRef.current) return;
+    scrollRef.current.scrollLeft = Math.max(0, todayLeftPx - scrollRef.current.clientWidth / 3);
+  }, [todayLeftPx]);
+
   if (ranges.length === 0) {
     return (
       <div className="section">
@@ -94,7 +106,7 @@ export default function GlobalGantt({ projects }: Props) {
         </div>
         <span className="gantt-hint">Clic en una fila para abrir el proyecto.</span>
       </div>
-      <div className="gantt">
+      <div className="gantt" ref={scrollRef}>
         <div className="gantt-head" style={{ width: LABEL_COL + trackW }}>
           <div className="gantt-head-spacer" style={{ width: LABEL_COL }} />
           <div className="gantt-ticks" style={{ width: trackW }}>
@@ -127,8 +139,8 @@ export default function GlobalGantt({ projects }: Props) {
                 style={{ width: LABEL_COL + trackW, cursor: 'pointer' }}
                 onClick={() => navigate(`/projects/${r.project.id}`)}
               >
-                <span className="gantt-row-label" title={r.project.name}>
-                  {r.project.code} — {r.project.name}
+                <span className="gantt-row-label wide" title={r.project.name}>
+                  {r.project.name}
                 </span>
                 <div className="gantt-row-track" style={{ width: trackW }}>
                   <div

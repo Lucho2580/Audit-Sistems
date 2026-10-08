@@ -43,19 +43,19 @@ const MEETING_SELECT = `
 `;
 
 function normalizeProject(project: Project): Project {
-  const sections = [...project.sections]
+  const sections = [...(project.sections ?? [])]
     .sort((a, b) => a.orderIndex - b.orderIndex)
     .map((s) => ({
       ...s,
-      items: [...s.items]
+      items: [...(s.items ?? [])]
         .sort((a, b) => a.n - b.n)
         .map((it) => ({
           ...it,
           assignedToNombre: (it.assignedToNombre as any)?.fullName ?? null,
-          log: it.log.map((l) => ({ ...l, qaApprovedByNombre: (l.qaApprovedByNombre as any)?.fullName ?? null })),
+          log: (it.log ?? []).map((l) => ({ ...l, qaApprovedByNombre: (l.qaApprovedByNombre as any)?.fullName ?? null })),
         })),
     }));
-  const phases = [...project.phases].sort((a, b) => a.orderIndex - b.orderIndex);
+  const phases = [...(project.phases ?? [])].sort((a, b) => a.orderIndex - b.orderIndex);
   return { ...project, sections, phases, stats: computeProjectStats({ sections }) };
 }
 

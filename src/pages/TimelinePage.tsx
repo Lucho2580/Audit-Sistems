@@ -37,13 +37,16 @@ export default function TimelinePage() {
     return d;
   });
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([AuditApi.all(), ProjectsApi.list()])
       .then(([auditEntries, projectList]) => {
         setEntries(auditEntries);
         setProjects(projectList);
+        setLoadError(null);
       })
+      .catch((err) => setLoadError((err as Error).message || 'No se pudo cargar la actividad/proyectos.'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -123,6 +126,8 @@ export default function TimelinePage() {
 
       {loading ? (
         <div className="empty-state">Cargando…</div>
+      ) : loadError ? (
+        <div className="auth-error">No se pudo cargar esta página: {loadError}</div>
       ) : (
         <>
           {view === 'calendar' && (
