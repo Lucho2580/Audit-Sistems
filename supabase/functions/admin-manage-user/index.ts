@@ -46,7 +46,7 @@ async function maybeSendWelcomeEmail(params: {
   tempPassword: string;
   isReset: boolean;
 }): Promise<{ emailSent: boolean; emailError?: string }> {
-  if (!['desarrollador', 'admin', 'cliente'].includes(params.role)) return { emailSent: false };
+  if (!['desarrollador', 'admin', 'cliente', 'qa'].includes(params.role)) return { emailSent: false };
 
   const subject = params.isReset
     ? 'Tu contraseña fue restablecida — Sistema de Auditoría'
@@ -106,9 +106,9 @@ Deno.serve(async (req) => {
 
     if (action === 'create') {
       const { email, fullName, role } = body;
-      const allowedRoles = isSuperadmin ? ['cliente', 'desarrollador', 'admin'] : ['cliente', 'desarrollador'];
+      const allowedRoles = isSuperadmin ? ['cliente', 'desarrollador', 'admin', 'qa'] : ['cliente', 'desarrollador'];
       if (!email || !fullName || !allowedRoles.includes(role)) {
-        const rolesMsg = isSuperadmin ? 'cliente, desarrollador o admin' : 'cliente o desarrollador';
+        const rolesMsg = isSuperadmin ? 'cliente, desarrollador, admin o qa' : 'cliente o desarrollador';
         return json({ error: `Faltan datos o el rol no es válido (solo ${rolesMsg}).` }, 400);
       }
       const tempPassword = randomTempPassword();

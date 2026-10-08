@@ -2,24 +2,32 @@ import { supabase } from './supabase';
 import { SITE_URL } from './site';
 import { computeProjectStats } from '../types/domain';
 import type {
-  Project, Meeting, AuditLogEntry, ItemResponsible, ProjectStatus, MeetingState,
+  Project, Meeting, AuditLogEntry, ProjectStatus, MeetingState,
   Provider, ProjectPhase, DailyNote, ProfileLite, UserRole, Compromiso,
   WeeklyProgressEntry, WeeklyProgressOverviewRow, WeeklyProgressDetail,
+  PhaseTask,
 } from '../types/domain';
 
 const PROJECT_SELECT = `
   id, code, name, proveedor, status, createdAt:created_at,
+  startDate:start_date, deadlineDate:deadline_date,
   deliveryDate:delivery_date, finalDeliveryDate:final_delivery_date,
   delayDays:delay_days, finalObservation:final_observation,
   jefes:project_jefes ( id:jefe_id, nombre:jefe_nombre ),
   responsableId:responsable_id, responsableNombre:responsable_nombre,
   proveedorId:proveedor_id,
   clientes:project_clients ( id:cliente_id, nombre:cliente_nombre ),
+  phases:project_phases ( key, label, orderIndex:order_index, percent ),
   sections (
     id, key, code, title, notes, orderIndex:order_index,
     items:checklist_items (
-      id, n, text, resp, percent,
-      log:item_logs ( id, text, authorEmail:author_email, createdAt:created_at )
+      id, n, text, percent, dueDate:due_date,
+      assignedTo:assigned_to, assignedToNombre:profiles(fullName:full_name),
+      log:item_logs (
+        id, text, authorEmail:author_email, createdAt:created_at,
+        qaApproved:qa_approved, qaApprovedAt:qa_approved_at,
+        qaApprovedByNombre:profiles(fullName:full_name)
+      )
     )
   )
 `;
@@ -37,8 +45,18 @@ const MEETING_SELECT = `
 function normalizeProject(project: Project): Project {
   const sections = [...project.sections]
     .sort((a, b) => a.orderIndex - b.orderIndex)
-    .map((s) => ({ ...s, items: [...s.items].sort((a, b) => a.n - b.n) }));
-  return { ...project, sections, stats: computeProjectStats({ sections }) };
+    .map((s) => ({
+      ...s,
+      items: [...s.items]
+        .sort((a, b) => a.n - b.n)
+        .map((it) => ({
+          ...it,
+          assignedToNombre: (it.assignedToNombre as any)?.fullName ?? null,
+          log: it.log.map((l) => ({ ...l, qaApprovedByNombre: (l.qaApprovedByNombre as any)?.fullName ?? null })),
+        })),
+    }));
+  const phases = [...project.phases].sort((a, b) => a.orderIndex - b.orderIndex);
+  return { ...project, sections, phases, stats: computeProjectStats({ sections }) };
 }
 
 function throwIfError<T>({ data, error }: { data: T | null; error: { message: string } | null }): T {
@@ -92,9 +110,10 @@ export const ProjectsApi = {
     return normalizeProject(data);
   },
 
-  async create(payload: { name: string; proveedor: string }): Promise<{ id: string }> {
+  async create(payload: { name: string; proveedor: string; startDate?: string | null; deadlineDate?: string | null }): Promise<{ id: string }> {
     const res = await supabase.rpc('create_project', {
       p_name: payload.name, p_proveedor: payload.proveedor,
+      p_start_date: payload.startDate ?? null, p_deadline_date: payload.deadlineDate ?? null,
     });
     return throwIfError<{ id: string }>(res as any);
   },
@@ -140,6 +159,16 @@ export const ProjectsApi = {
     throwIfError(res as any);
   },
 
+  async updateDeadline(id: string, deadlineDate: string | null) {
+    const res = await supabase.from('projects').update({ deadline_date: deadlineDate }).eq('id', id);
+    throwIfError(res as any);
+  },
+
+  async updateStartDate(id: string, startDate: string | null) {
+    const res = await supabase.from('projects').update({ start_date: startDate }).eq('id', id);
+    throwIfError(res as any);
+  },
+
   async deleteProject(id: string) {
     const res = await supabase.from('projects').delete().eq('id', id);
     throwIfError(res as any);
@@ -169,27 +198,25 @@ export const ProjectsApi = {
     throwIfError(res as any);
   },
 
-  async addItem(sectionId: string, payload: { text: string; resp: ItemResponsible }) {
+  // El asignado del checkpoint ya no se elige a mano -- lo pone solo la DB
+  // (siempre la persona asignada del proyecto, vía trigger).
+  async addItem(sectionId: string, payload: { text: string }) {
     const res = await supabase
       .from('checklist_items')
-      .insert({ text: payload.text, resp: payload.resp, section_id: sectionId })
+      .insert({ text: payload.text, section_id: sectionId })
       .select()
       .single();
     return throwIfError(res as any);
   },
 
-  async updateItemPercent(itemId: string, percent: number, note?: string) {
-    const res = await supabase.rpc('set_item_percent', {
-      p_item_id: itemId, p_new_percent: percent, p_note: note ?? null,
-    });
-    return throwIfError(res as any);
+  async setItemDueDate(itemId: string, dueDate: string | null) {
+    const res = await supabase.from('checklist_items').update({ due_date: dueDate }).eq('id', itemId);
+    throwIfError(res as any);
   },
 
-  async toggleResp(itemId: string, current: ItemResponsible) {
-    const next: ItemResponsible = current === 'cliente' ? 'desarrollador' : 'cliente';
-    const res = await supabase.from('checklist_items').update({ resp: next }).eq('id', itemId);
+  async approveItemLog(logId: string) {
+    const res = await supabase.rpc('approve_item_log', { p_log_id: logId });
     throwIfError(res as any);
-    return next;
   },
 
   async deleteItem(itemId: string) {
@@ -468,6 +495,16 @@ export const ProvidersApi = {
     const res = await supabase.from('providers').select('id, name').order('name', { ascending: true });
     return throwIfError<Provider[]>(res as any);
   },
+
+  async create(name: string): Promise<Provider> {
+    const res = await supabase.from('providers').insert({ name }).select('id, name').single();
+    return throwIfError<Provider>(res as any);
+  },
+
+  async remove(id: string): Promise<void> {
+    const res = await supabase.from('providers').delete().eq('id', id);
+    throwIfError(res as any);
+  },
 };
 
 // Directorio interno de esta app (profiles reales), usado por los pickers de
@@ -519,11 +556,11 @@ export interface AdminCreatedUser {
 // cliente normal. Esa función debe validar aparte que solo superadmin puede
 // crear role:'admin'.
 export const UsersAdminApi = {
-  async list(role: 'admin' | 'desarrollador' | 'cliente'): Promise<ProfileLite[]> {
+  async list(role: 'admin' | 'desarrollador' | 'cliente' | 'qa'): Promise<ProfileLite[]> {
     return ProfilesApi.searchByRole(role, '', 200);
   },
 
-  async create(payload: { email: string; fullName: string; role: 'admin' | 'desarrollador' | 'cliente' }): Promise<AdminCreatedUser> {
+  async create(payload: { email: string; fullName: string; role: 'admin' | 'desarrollador' | 'cliente' | 'qa' }): Promise<AdminCreatedUser> {
     const { data, error } = await supabase.functions.invoke<AdminCreatedUser>('admin-manage-user', {
       body: { action: 'create', email: payload.email, fullName: payload.fullName, role: payload.role },
     });
@@ -625,7 +662,10 @@ export const PhasesApi = {
   async listByProject(projectId: string): Promise<ProjectPhase[]> {
     const res = await supabase
       .from('project_phases')
-      .select('id, projectId:project_id, key, label, orderIndex:order_index, startDate:start_date, durationDays:duration_days')
+      .select(
+        'id, projectId:project_id, key, label, orderIndex:order_index, startDate:start_date, durationDays:duration_days, ' +
+          'percent, qaStatus:qa_status, qaSubmittedAt:qa_submitted_at, qaApprovedBy:qa_approved_by, qaApprovedAt:qa_approved_at',
+      )
       .eq('project_id', projectId)
       .order('order_index', { ascending: true });
     return throwIfError<ProjectPhase[]>(res as any);
@@ -638,5 +678,40 @@ export const PhasesApi = {
       p_duration_days: payload.durationDays,
     });
     throwIfError(res as any);
+  },
+
+  async setPercent(phaseId: string, percent: number) {
+    const res = await supabase.rpc('set_phase_percent', { p_phase_id: phaseId, p_percent: percent });
+    throwIfError(res as any);
+  },
+};
+
+const PHASE_TASK_SELECT =
+  'id, phaseId:phase_id, projectId:project_id, text, assignedTo:assigned_to, ' +
+  'assignedToNombre:profiles(fullName:full_name), startDate:start_date, plannedEndDate:planned_end_date, percent, observaciones';
+
+function normalizePhaseTask(row: any): PhaseTask {
+  return {
+    id: row.id, phaseId: row.phaseId, projectId: row.projectId, text: row.text,
+    assignedTo: row.assignedTo, assignedToNombre: row.assignedToNombre?.fullName ?? null,
+    startDate: row.startDate, plannedEndDate: row.plannedEndDate,
+    percent: row.percent, observaciones: row.observaciones,
+  };
+}
+
+// Tareas dentro de una fase: de solo lectura desde el frontend (alimentan el
+// Gantt, el calendario y los gráficos del proyecto) -- la gestión manual
+// (alta/baja, asignación, % y aprobación QA por fase) se quitó junto con el
+// panel "Fases y tareas"; el asignado ahora lo sincroniza la DB con la
+// persona asignada del proyecto.
+export const PhaseTasksApi = {
+  async listByProject(projectId: string): Promise<PhaseTask[]> {
+    const res = await supabase
+      .from('phase_tasks')
+      .select(PHASE_TASK_SELECT)
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true });
+    const rows = throwIfError<any[]>(res as any);
+    return rows.map(normalizePhaseTask);
   },
 };

@@ -8,25 +8,52 @@ import ProjectImportModal from '../components/ProjectImportModal';
 import { useSidebarStats, useDashboardToggle } from '../context/ShellChromeContext';
 import { ProjectsApi, ProvidersApi } from '../lib/services';
 import { exportProjectsCsv, downloadCsvTemplate } from '../lib/csv';
-import { STATUS_META, type Project, type ProjectStatus, type ProfileLite } from '../types/domain';
+import {
+  STATUS_META, DELAY_STATUS_META, taskDelayStatus, taskExpectedPct,
+  type Project, type ProjectStatus, type ProfileLite, type DelayStatus,
+} from '../types/domain';
 import { useAuth } from '../context/AuthContext';
 
 const ACTIVE_STATES: ProjectStatus[] = ['levantamiento', 'desarrollo', 'validacion'];
+
+const DELAY_TONE: Record<DelayStatus, string> = {
+  completado: 'green', en_tiempo: 'blue', en_riesgo: 'gold', atrasado: 'rust',
+};
+
+// Avance esperado automático (ítem 3b, vuelta 2): en vez de depender de que
+// cada tarea de fase tenga fechas asignadas (podían estar todas vacías en un
+// proyecto recién creado), se calcula desde el rango propio del proyecto
+// (startDate -> deadlineDate), igual que taskDelayStatus pero a nivel de
+// proyecto completo.
+function projectSchedule(p: Project): { actualPct: number; expectedPct: number; status: DelayStatus } | null {
+  if (!p.deadlineDate) return null;
+  const virtualTask = {
+    percent: p.stats?.pct ?? 0,
+    startDate: p.startDate ?? p.createdAt.slice(0, 10),
+    plannedEndDate: p.deadlineDate,
+  };
+  const expectedPct = Math.round(taskExpectedPct(virtualTask) ?? virtualTask.percent);
+  return { actualPct: virtualTask.percent, expectedPct, status: taskDelayStatus(virtualTask) };
+}
 
 interface ActorForm {
   name: string;
   jefes: ProfileLite[];
   responsable: ProfileLite | null;
   clientes: ProfileLite[];
+  startDate: string;
+  deadlineDate: string;
 }
 
-const EMPTY_FORM: ActorForm = { name: '', jefes: [], responsable: null, clientes: [] };
+const EMPTY_FORM: ActorForm = { name: '', jefes: [], responsable: null, clientes: [], startDate: '', deadlineDate: '' };
 
 export default function ProjectsList() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   // Conjunto de estados activos en el filtro. Vacío = "todos".
   const [statusFilters, setStatusFilters] = useState<Set<ProjectStatus>>(new Set());
+  const [nameSearch, setNameSearch] = useState('');
+  const [providerFilter, setProviderFilter] = useState<string | null>(null);
   const [showIntake, setShowIntake] = useState(false);
   const [showDashboard, setShowDashboard] = useState(true);
   const [form, setForm] = useState<ActorForm>(EMPTY_FORM);
@@ -37,6 +64,9 @@ export default function ProjectsList() {
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [savingActors, setSavingActors] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  // Filas con el desglose de avance por fase abierto -- se puede ver sin
+  // tener que entrar al detalle del proyecto.
+  const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
   // MyOffice es el único proveedor interno (sin cuenta, sin selector) -- se
   // resuelve una vez y se manda solo, en vez de pedirle al usuario que elija
   // entre proveedores que ya no existen como opción.
@@ -65,7 +95,13 @@ export default function ProjectsList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const visible = projects.filter((p) => statusFilters.size === 0 || statusFilters.has(p.status));
+  const normalizedSearch = nameSearch.trim().toLowerCase();
+  const visible = projects.filter(
+    (p) =>
+      (statusFilters.size === 0 || statusFilters.has(p.status)) &&
+      (!normalizedSearch || p.name.toLowerCase().includes(normalizedSearch)) &&
+      (!providerFilter || p.proveedor === providerFilter),
+  );
   const totals = {
     total: projects.length,
     activos: projects.filter((p) => p.status !== 'cerrado').length,
@@ -101,10 +137,11 @@ export default function ProjectsList() {
   }
 
   const filterSummary = useMemo(() => {
-    if (statusFilters.size === 0) return 'Mostrando todos los proyectos';
-    const labels = [...statusFilters].map((s) => STATUS_META[s]);
-    return `Filtrando por: ${labels.join(', ')}`;
-  }, [statusFilters]);
+    const parts: string[] = [];
+    if (statusFilters.size > 0) parts.push([...statusFilters].map((s) => STATUS_META[s]).join(', '));
+    if (providerFilter) parts.push(`proveedor "${providerFilter}"`);
+    return parts.length ? `Filtrando por: ${parts.join(' · ')}` : 'Mostrando todos los proyectos';
+  }, [statusFilters, providerFilter]);
 
   useDashboardToggle(
     useMemo(() => ({ active: showDashboard, onToggle: () => setShowDashboard((s) => !s) }), [showDashboard]),
@@ -152,12 +189,18 @@ export default function ProjectsList() {
     if (!form.jefes.length) errors.jefe = 'Elige al menos un jefe de proyecto.';
     if (!form.responsable) errors.responsable = 'Elige quién es la persona asignada.';
     if (!myOfficeProviderId) errors.proveedor = 'No se encontró el proveedor interno (MyOffice) -- revisa en Herramientas.';
+    if (form.startDate && form.deadlineDate && form.deadlineDate <= form.startDate) {
+      errors.deadlineDate = 'La fecha de entrega esperada debe ser posterior a la fecha de inicio.';
+    }
     setFormErrors(errors);
     if (Object.keys(errors).length) return;
 
     setCreating(true);
     try {
-      const { id } = await ProjectsApi.create({ name: form.name.trim(), proveedor: 'MyOffice' });
+      const { id } = await ProjectsApi.create({
+        name: form.name.trim(), proveedor: 'MyOffice',
+        startDate: form.startDate || null, deadlineDate: form.deadlineDate || null,
+      });
       await ProjectsApi.setActors(id, {
         responsableId: form.responsable!.id,
         proveedorId: myOfficeProviderId!,
@@ -190,6 +233,8 @@ export default function ProjectsList() {
       jefes: p.jefes.map((j) => ({ id: j.id, fullName: j.nombre, email: '', role: 'admin' as const })),
       responsable: p.responsableId ? { id: p.responsableId, fullName: p.responsableNombre, email: '', role: 'desarrollador' } : null,
       clientes: p.clientes.map((c) => ({ id: c.id, fullName: c.nombre, email: '', role: 'cliente' as const })),
+      startDate: p.startDate ?? '',
+      deadlineDate: p.deadlineDate ?? '',
     });
     setEditErrors({});
   }
@@ -202,6 +247,9 @@ export default function ProjectsList() {
     if (!editingProject.proveedorId && !myOfficeProviderId) {
       errors.proveedor = 'No se encontró el proveedor interno (MyOffice) -- revisa en Herramientas.';
     }
+    if (editForm.startDate && editForm.deadlineDate && editForm.deadlineDate <= editForm.startDate) {
+      errors.deadlineDate = 'La fecha de entrega esperada debe ser posterior a la fecha de inicio.';
+    }
     setEditErrors(errors);
     if (Object.keys(errors).length) return;
 
@@ -211,6 +259,12 @@ export default function ProjectsList() {
         responsableId: editForm.responsable!.id,
         proveedorId: editingProject.proveedorId ?? myOfficeProviderId!,
       });
+      if (editForm.startDate !== (editingProject.startDate ?? '')) {
+        await ProjectsApi.updateStartDate(editingProject.id, editForm.startDate || null);
+      }
+      if (editForm.deadlineDate !== (editingProject.deadlineDate ?? '')) {
+        await ProjectsApi.updateDeadline(editingProject.id, editForm.deadlineDate || null);
+      }
       const beforeJefeIds = new Set(editingProject.jefes.map((j) => j.id));
       const afterJefeIds = new Set(editForm.jefes.map((j) => j.id));
       for (const jefe of editForm.jefes) {
@@ -234,6 +288,14 @@ export default function ProjectsList() {
     } finally {
       setSavingActors(false);
     }
+  }
+
+  function togglePhasesRow(projectId: string) {
+    setExpandedPhases((prev) => {
+      const next = new Set(prev);
+      next.has(projectId) ? next.delete(projectId) : next.add(projectId);
+      return next;
+    });
   }
 
   async function changeStatus(id: string, status: ProjectStatus) {
@@ -261,11 +323,22 @@ export default function ProjectsList() {
       </div>
 
       {showDashboard && !loading && (
-        <ProjectsDashboard projects={projects} onSliceClick={(status) => handleStatusToggle(status, false)} />
+        <ProjectsDashboard
+          projects={projects}
+          onSliceClick={(status) => handleStatusToggle(status, false)}
+          onProviderClick={(name) => setProviderFilter((prev) => (prev === name ? null : name))}
+        />
       )}
 
       <div className="toolbar">
         <div className="filters">
+          <input
+            type="text"
+            className="filter-search"
+            value={nameSearch}
+            onChange={(e) => setNameSearch(e.target.value)}
+            placeholder="Buscar proyecto por nombre…"
+          />
           <select
             className="filter-select"
             value={statusFilters.size === 1 ? [...statusFilters][0] : 'all'}
@@ -282,6 +355,11 @@ export default function ProjectsList() {
             ))}
           </select>
           <span className="filter-note">{filterSummary}</span>
+          {providerFilter && (
+            <button className="btn ghost small" onClick={() => setProviderFilter(null)}>
+              Quitar filtro de proveedor ×
+            </button>
+          )}
         </div>
         <div className="btn-group">
           <button className="btn ghost small" onClick={() => downloadCsvTemplate()}>
@@ -370,6 +448,24 @@ export default function ProjectsList() {
                   {formErrors.cliente && <span className="field-error">{formErrors.cliente}</span>}
                   {formErrors.proveedor && <span className="field-error">{formErrors.proveedor}</span>}
                 </div>
+                <div className="modal-field">
+                  <label>Fecha de inicio</label>
+                  <input
+                    type="date"
+                    value={form.startDate}
+                    onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                  />
+                </div>
+                <div className={`modal-field${formErrors.deadlineDate ? ' has-error' : ''}`}>
+                  <label>Fecha de entrega esperada</label>
+                  <input
+                    type="date"
+                    value={form.deadlineDate}
+                    onChange={(e) => setForm({ ...form, deadlineDate: e.target.value })}
+                  />
+                  {formErrors.deadlineDate && <span className="field-error">{formErrors.deadlineDate}</span>}
+                  <span className="field-hint">Si no se definen, el plazo por defecto es de 3 meses desde hoy.</span>
+                </div>
               </div>
               <div className="stat-grid modal-stat-grid">
                 <div className="stat-item">
@@ -445,6 +541,23 @@ export default function ProjectsList() {
                   {editErrors.cliente && <span className="field-error">{editErrors.cliente}</span>}
                   {editErrors.proveedor && <span className="field-error">{editErrors.proveedor}</span>}
                 </div>
+                <div className="modal-field">
+                  <label>Fecha de inicio</label>
+                  <input
+                    type="date"
+                    value={editForm.startDate}
+                    onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+                  />
+                </div>
+                <div className={`modal-field${editErrors.deadlineDate ? ' has-error' : ''}`}>
+                  <label>Plazo (fecha de entrega esperada)</label>
+                  <input
+                    type="date"
+                    value={editForm.deadlineDate}
+                    onChange={(e) => setEditForm({ ...editForm, deadlineDate: e.target.value })}
+                  />
+                  {editErrors.deadlineDate && <span className="field-error">{editErrors.deadlineDate}</span>}
+                </div>
               </div>
             </div>
             <div className="modal-foot">
@@ -472,7 +585,9 @@ export default function ProjectsList() {
               : 'No tienes proyectos asignados con este filtro.'}
           </div>
         ) : (
-          visible.map((p) => (
+          visible.map((p) => {
+            const schedule = projectSchedule(p);
+            return (
             <div className="proj-row" key={p.id} onClick={() => navigate(`/projects/${p.id}`)} title="Ver detalle del proyecto">
               <div className="proj-main">
                 <div className="proj-code">{p.code}</div>
@@ -482,12 +597,6 @@ export default function ProjectsList() {
                     <span className="proj-meta-label">{p.jefes.length > 1 ? 'Jefes' : 'Jefe'}</span>
                     <span className="proj-meta-value">
                       {p.jefes.length ? p.jefes.map((j) => j.nombre).join(', ') : 'Sin asignar'}
-                    </span>
-                  </span>
-                  <span className="proj-meta-item">
-                    <span className="proj-meta-label">{p.clientes.length > 1 ? 'Clientes' : 'Cliente'}</span>
-                    <span className="proj-meta-value">
-                      {p.clientes.length ? p.clientes.map((c) => c.nombre).join(', ') : 'Sin asignar'}
                     </span>
                   </span>
                   <span className="proj-meta-item">
@@ -513,7 +622,24 @@ export default function ProjectsList() {
                     </option>
                   ))}
                 </select>
-                <span className="proj-pct">{p.stats?.pct ?? 0}%</span>
+                <span
+                  className="proj-progress-compare"
+                  title="Avance real / avance esperado según el plazo -- clic para ver el desglose por fase"
+                  onClick={() => togglePhasesRow(p.id)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <span className="proj-pct">{p.stats?.pct ?? 0}%</span>
+                  {schedule && (
+                    <>
+                      <span className="proj-pct-sep">/</span>
+                      <span className="proj-pct-expected">{schedule.expectedPct}%</span>
+                      <span className={`delay-badge small tone-${DELAY_TONE[schedule.status]}`}>
+                        {DELAY_STATUS_META[schedule.status]}
+                      </span>
+                    </>
+                  )}
+                  <span className={`phases-toggle-chevron${expandedPhases.has(p.id) ? ' open' : ''}`}>▾</span>
+                </span>
                 {canManage && (
                   <button className="btn small ghost" title="Editar jefe, persona asignada y proveedor" onClick={() => openEditActors(p)}>
                     Editar
@@ -528,8 +654,26 @@ export default function ProjectsList() {
               <div className="proj-bar-track">
                 <div className="proj-bar-fill" style={{ width: `${p.stats?.pct ?? 0}%` }} />
               </div>
+              {expandedPhases.has(p.id) && (
+                <div className="proj-phases-breakdown" onClick={(e) => e.stopPropagation()}>
+                  {p.phases.length === 0 ? (
+                    <span className="admin-hint" style={{ padding: 0 }}>Sin fases configuradas todavía.</span>
+                  ) : (
+                    p.phases.map((phase) => (
+                      <div className="bar-row" key={phase.key}>
+                        <span className="bar-label" title={phase.label}>{phase.label}</span>
+                        <span className="bar-track2">
+                          <span className="bar-fill2" style={{ width: `${phase.percent}%` }} />
+                        </span>
+                        <span className="bar-value">{phase.percent}%</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </AppShell>

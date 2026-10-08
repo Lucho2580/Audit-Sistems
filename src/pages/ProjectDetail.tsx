@@ -7,14 +7,20 @@ import MeetingsCalendar from '../components/MeetingsCalendar';
 import AuditHistoryPanel from '../components/AuditHistoryPanel';
 import RoadmapPhases from '../components/RoadmapPhases';
 import DeliveryPanel from '../components/DeliveryPanel';
-import WeeklyProgressPanel from '../components/WeeklyProgressPanel';
-import { ProjectsApi, MeetingsApi, PhasesApi, DailyNotesApi } from '../lib/services';
+import ParticipationChart from '../components/ParticipationChart';
+import PhaseProgressChart from '../components/PhaseProgressChart';
+import ProjectCalendar from '../components/ProjectCalendar';
+import { ProjectsApi, MeetingsApi, PhasesApi, PhaseTasksApi, DailyNotesApi } from '../lib/services';
 import { generateProjectReportPdf } from '../lib/pdf';
 import {
-  STATUS_META, phaseEndDate,
-  type Project, type Meeting, type ProjectPhase, type ProjectStatus, type ItemResponsible, type DailyNote,
+  STATUS_META, DELAY_STATUS_META, phaseEndDate, taskDelayStatus, worstDelayStatus,
+  type Project, type Meeting, type ProjectPhase, type PhaseTask, type ProjectStatus, type DailyNote,
 } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
+
+const DELAY_TONE: Record<string, string> = {
+  completado: 'green', en_tiempo: 'blue', en_riesgo: 'gold', atrasado: 'rust',
+};
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
@@ -26,25 +32,28 @@ export default function ProjectDetail() {
   // sus checkpoints y agregar observaciones (canEditPercent).
   const canEdit = profile?.role === 'admin' || profile?.role === 'superadmin';
   const canEditPercent = canEdit || profile?.role === 'desarrollador';
+  const isQaReviewer = profile?.role === 'qa';
 
   const [project, setProject] = useState<Project | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [phases, setPhases] = useState<ProjectPhase[]>([]);
+  const [tasks, setTasks] = useState<PhaseTask[]>([]);
   const [dailyNotes, setDailyNotes] = useState<DailyNote[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pendiente' | 'progreso' | 'completo'>('all');
-  const [filterResp, setFilterResp] = useState<'all' | ItemResponsible>('all');
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [p, mts, phs, notes] = await Promise.all([
+    const [p, mts, phs, tks, notes] = await Promise.all([
       ProjectsApi.get(id),
       MeetingsApi.listByProject(id),
       PhasesApi.listByProject(id),
+      PhaseTasksApi.listByProject(id),
       DailyNotesApi.listByProject(id),
     ]);
     setProject(p);
     setMeetings(mts);
     setPhases(phs);
+    setTasks(tks);
     setDailyNotes(notes);
   }, [id]);
 
@@ -81,8 +90,16 @@ export default function ProjectDetail() {
     load();
   }
 
+  // Jefe/admin y la persona asignada de ESTE proyecto ven el enlace a
+  // "Informes semanales" (página aparte, no mezclada con el detalle general).
+  const isResponsable = profile?.id != null && profile.id === project.responsableId;
+
   const plannedEntregaDate = phaseEndDate(phases.find((p) => p.key === 'entrega'));
   const plannedFinalDate = phaseEndDate(phases.find((p) => p.key === 'fin'));
+
+  // Atraso a nivel de proyecto (ítem 5): el peor estado entre todas las
+  // tareas de todas las fases, mostrado como badge en el masthead.
+  const projectDelay = worstDelayStatus(tasks.map((t) => taskDelayStatus(t)));
 
   return (
     <AppShell>
@@ -99,6 +116,11 @@ export default function ProjectDetail() {
             {project.clientes.length ? project.clientes.map((c) => c.nombre).join(', ') : 'Sin asignar'}
             {' · '}Proveedor: {project.proveedor}
           </p>
+          {tasks.length > 0 && (
+            <span className={`delay-badge tone-${DELAY_TONE[projectDelay]}`} title="Peor estado de atraso entre todas las tareas del proyecto">
+              {DELAY_STATUS_META[projectDelay]}
+            </span>
+          )}
         </div>
         <div className="status-select-wrap">
           <label>Estado del proyecto</label>
@@ -123,15 +145,22 @@ export default function ProjectDetail() {
             <option value="progreso">En progreso</option>
             <option value="completo">Completo (100%)</option>
           </select>
-          <select className="filter-select" value={filterResp} onChange={(e) => setFilterResp(e.target.value as any)}>
-            <option value="all">Responsable: todos</option>
-            <option value="cliente">Cliente</option>
-            <option value="desarrollador">Desarrollador</option>
-          </select>
         </div>
-        <button className="btn ghost" onClick={() => generateProjectReportPdf(project, meetings)}>
-          Exportar informe del proyecto (PDF) ↓
-        </button>
+        <div className="btn-group">
+          {(canEdit || isResponsable) && (
+            <button className="btn ghost" onClick={() => navigate(`/projects/${project.id}/informe-semanal`)}>
+              Informes semanales →
+            </button>
+          )}
+          <button className="btn ghost" onClick={() => generateProjectReportPdf(project, meetings)}>
+            Exportar informe del proyecto (PDF) ↓
+          </button>
+        </div>
+      </div>
+
+      <div className="dashboard-grid">
+        <ParticipationChart tasks={tasks} />
+        <PhaseProgressChart phases={phases} canEdit={canEdit || isQaReviewer} onChanged={load} />
       </div>
 
       {project.sections
@@ -142,32 +171,24 @@ export default function ProjectDetail() {
             key={sec.id}
             section={sec}
             filterStatus={filterStatus}
-            filterResp={filterResp}
-            canEdit={canEdit}
-            canEditPercent={canEditPercent}
+            canEdit={canEdit || isQaReviewer}
+            canEditPercent={canEditPercent || isQaReviewer}
+            minDate={project.startDate}
+            maxDate={project.deadlineDate}
             onChanged={load}
           />
         ))}
 
-      {/* Solo jefe de proyecto/superadmin ve este panel (indicador + historial) --
-          la persona asignada solo interactúa con el reporte semanal a través
-          del modal bloqueante (WeeklyProgressGate). "Completo" = status
-          'cerrado' únicamente -- antes también se apagaba con checklist al
-          100%, pero esa regla solo vivía aquí (el modal bloqueante no la
-          conocía, porque list_weekly_progress_overview no trae el % del
-          checklist), así que un proyecto al 100% sin cerrar formalmente
-          dejaba de pedirse el reporte en esta pantalla pero lo seguía
-          exigiendo el modal -- inconsistente. Ahora solo "Cerrado" apaga
-          ambos lados. */}
-      {canEdit && (
-        <WeeklyProgressPanel
-          projectId={project.id}
-          canFill={canEdit}
-          isComplete={project.status === 'cerrado'}
-        />
-      )}
+      <ProjectCalendar phases={phases} tasks={tasks} />
 
-      <RoadmapPhases phases={phases} canEdit={canEdit} onChanged={load} />
+      <RoadmapPhases
+        phases={phases}
+        tasks={tasks}
+        canEdit={canEdit}
+        minDate={project.startDate}
+        maxDate={project.deadlineDate}
+        onChanged={load}
+      />
 
       <DeliveryPanel
         project={project}

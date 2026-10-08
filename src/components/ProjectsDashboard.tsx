@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 import { STATUS_META, type Project, type ProjectStatus } from '../types/domain';
+import { donutSlicePath } from '../lib/charts';
 
 interface Props {
   projects: Project[];
   onSliceClick?: (status: ProjectStatus) => void;
+  onProviderClick?: (name: string) => void;
 }
 
 const STATUS_COLORS: Record<ProjectStatus, string> = {
@@ -13,27 +15,7 @@ const STATUS_COLORS: Record<ProjectStatus, string> = {
   cerrado: 'var(--green)',
 };
 
-function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
-  const rad = ((angleDeg - 90) * Math.PI) / 180;
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
-}
-
-function donutSlicePath(cx: number, cy: number, rOuter: number, rInner: number, startAngle: number, endAngle: number) {
-  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-  const p0 = polarToCartesian(cx, cy, rOuter, endAngle);
-  const p1 = polarToCartesian(cx, cy, rOuter, startAngle);
-  const p2 = polarToCartesian(cx, cy, rInner, startAngle);
-  const p3 = polarToCartesian(cx, cy, rInner, endAngle);
-  return [
-    `M ${p0.x} ${p0.y}`,
-    `A ${rOuter} ${rOuter} 0 ${largeArc} 0 ${p1.x} ${p1.y}`,
-    `L ${p2.x} ${p2.y}`,
-    `A ${rInner} ${rInner} 0 ${largeArc} 1 ${p3.x} ${p3.y}`,
-    'Z',
-  ].join(' ');
-}
-
-export default function ProjectsDashboard({ projects, onSliceClick }: Props) {
+export default function ProjectsDashboard({ projects, onSliceClick, onProviderClick }: Props) {
   const byStatus = useMemo(() => {
     const counts: Record<ProjectStatus, number> = {
       levantamiento: 0, desarrollo: 0, validacion: 0, cerrado: 0,
@@ -62,6 +44,15 @@ export default function ProjectsDashboard({ projects, onSliceClick }: Props) {
       return { status, count, start, end };
     });
 
+  // Leyenda de mayor a menor, con el % que representa cada estado sobre el total.
+  const statusLegend = (Object.keys(STATUS_META) as ProjectStatus[])
+    .map((status) => ({
+      status,
+      count: byStatus[status],
+      pct: total ? Math.round((byStatus[status] / total) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
   return (
     <div className="dashboard-grid">
       <div className="dash-card">
@@ -86,7 +77,7 @@ export default function ProjectsDashboard({ projects, onSliceClick }: Props) {
               <text x="100" y="114" textAnchor="middle" className="donut-total-label">total</text>
             </svg>
             <ul className="donut-legend">
-              {(Object.keys(STATUS_META) as ProjectStatus[]).map((status) => (
+              {statusLegend.map(({ status, count, pct }) => (
                 <li
                   key={status}
                   onClick={() => onSliceClick?.(status)}
@@ -94,7 +85,8 @@ export default function ProjectsDashboard({ projects, onSliceClick }: Props) {
                 >
                   <span className="dot" style={{ background: STATUS_COLORS[status] }} />
                   {STATUS_META[status]}
-                  <strong>{byStatus[status]}</strong>
+                  <strong>{count}</strong>
+                  <span className="donut-legend-pct">{pct}%</span>
                 </li>
               ))}
             </ul>
@@ -109,7 +101,13 @@ export default function ProjectsDashboard({ projects, onSliceClick }: Props) {
         ) : (
           <div className="bar-chart">
             {byProvider.map(([name, count]) => (
-              <div className="bar-row" key={name}>
+              <div
+                className="bar-row"
+                key={name}
+                onClick={() => onProviderClick?.(name)}
+                style={{ cursor: onProviderClick ? 'pointer' : 'default' }}
+                title={onProviderClick ? `Ver los ${count} proyecto(s) de ${name}` : undefined}
+              >
                 <span className="bar-label" title={name}>{name}</span>
                 <span className="bar-track2">
                   <span className="bar-fill2" style={{ width: `${(count / maxProvider) * 100}%` }} />

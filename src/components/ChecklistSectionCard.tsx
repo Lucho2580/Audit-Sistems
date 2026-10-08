@@ -1,18 +1,18 @@
 import { useState } from 'react';
 import { ProjectsApi } from '../lib/services';
-import {
-  PERCENT_OPTIONS, RESP_LABEL, bandOf,
-  type Section, type ChecklistItem, type ItemResponsible,
-} from '../types/domain';
+import { bandOf, type Section, type ChecklistItem } from '../types/domain';
 
 interface Props {
   section: Section;
   filterStatus: 'all' | 'pendiente' | 'progreso' | 'completo';
-  filterResp: 'all' | ItemResponsible;
-  canEdit: boolean; // agregar/eliminar checkpoints, alternar responsable, notas de sección
-  canEditPercent: boolean; // actualizar avance y agregar observaciones al checkpoint
+  canEdit: boolean; // agregar/eliminar checkpoints, aprobar seguimientos, notas de sección
+  canEditPercent: boolean; // agregar observaciones de seguimiento (el % lo calcula el sistema)
+  minDate: string | null; // fecha de inicio del proyecto -- límite inferior de la fecha límite de un checkpoint
+  maxDate: string | null; // fecha de entrega esperada del proyecto -- límite superior
   onChanged: () => void;
 }
+
+const todayISO = new Date().toISOString().slice(0, 10);
 
 function computeStats(items: ChecklistItem[]) {
   const total = items.length;
@@ -20,20 +20,15 @@ function computeStats(items: ChecklistItem[]) {
   return { total, pct };
 }
 
-export default function ChecklistSectionCard({ section, filterStatus, filterResp, canEdit, canEditPercent, onChanged }: Props) {
+export default function ChecklistSectionCard({ section, filterStatus, canEdit, canEditPercent, minDate, maxDate, onChanged }: Props) {
   const [openHistory, setOpenHistory] = useState<Set<string>>(new Set());
-  const [pendingObs, setPendingObs] = useState<{ id: string; newPercent: number } | null>(null);
-  const [obsText, setObsText] = useState('');
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [newItemText, setNewItemText] = useState('');
-  const [newItemResp, setNewItemResp] = useState<ItemResponsible>('cliente');
   const [notes, setNotes] = useState(section.notes);
 
   const stats = computeStats(section.items);
   const visibleItems = section.items.filter(
-    (it) =>
-      (filterStatus === 'all' || bandOf(it.percent) === filterStatus) &&
-      (filterResp === 'all' || it.resp === filterResp),
+    (it) => filterStatus === 'all' || bandOf(it.percent) === filterStatus,
   );
 
   function toggleHistory(id: string) {
@@ -44,30 +39,13 @@ export default function ChecklistSectionCard({ section, filterStatus, filterResp
     });
   }
 
-  async function handlePercentChange(item: ChecklistItem, newPercent: number) {
-    if (item.percent === 100 && newPercent !== 100) {
-      setPendingObs({ id: item.id, newPercent });
-      setObsText('');
-      return;
-    }
-    await ProjectsApi.updateItemPercent(item.id, newPercent);
+  async function setDueDate(item: ChecklistItem, dueDate: string) {
+    await ProjectsApi.setItemDueDate(item.id, dueDate || null);
     onChanged();
   }
 
-  async function saveObs(item: ChecklistItem) {
-    if (!pendingObs) return;
-    if (!obsText.trim()) {
-      alert('Escribe una observación antes de guardar el cambio.');
-      return;
-    }
-    await ProjectsApi.updateItemPercent(item.id, pendingObs.newPercent, obsText.trim());
-    setPendingObs(null);
-    setOpenHistory((prev) => new Set(prev).add(item.id));
-    onChanged();
-  }
-
-  async function toggleResp(item: ChecklistItem) {
-    await ProjectsApi.toggleResp(item.id, item.resp);
+  async function approveLog(logId: string) {
+    await ProjectsApi.approveItemLog(logId);
     onChanged();
   }
 
@@ -88,13 +66,14 @@ export default function ChecklistSectionCard({ section, filterStatus, filterResp
     if (!text) return;
     await ProjectsApi.addItemLog(item.id, text);
     setNoteDrafts((d) => ({ ...d, [item.id]: '' }));
+    setOpenHistory((prev) => new Set(prev).add(item.id));
     onChanged();
   }
 
   async function addItem() {
     const text = newItemText.trim();
     if (!text) return;
-    await ProjectsApi.addItem(section.id, { text, resp: newItemResp });
+    await ProjectsApi.addItem(section.id, { text });
     setNewItemText('');
     onChanged();
   }
@@ -143,25 +122,28 @@ export default function ChecklistSectionCard({ section, filterStatus, filterResp
                 </span>
                 <span className={`item-text ${band === 'completo' ? 'done' : ''}`}>{it.text}</span>
                 <span className="item-actions">
+                  <span className="resp-tag">{it.assignedToNombre ?? 'Sin asignar'}</span>
+                  {canEdit ? (
+                    <input
+                      type="date"
+                      className="due-date-input"
+                      value={it.dueDate ?? ''}
+                      min={minDate ?? undefined}
+                      max={maxDate ?? undefined}
+                      onChange={(e) => setDueDate(it, e.target.value)}
+                      title="Fecha límite del checkpoint"
+                    />
+                  ) : it.dueDate ? (
+                    <span className={`due-date-tag${band !== 'completo' && it.dueDate < todayISO ? ' overdue' : ''}`}>
+                      {it.dueDate}
+                    </span>
+                  ) : null}
                   <span
-                    className={`resp-tag ${it.resp}`}
-                    onClick={() => canEdit && toggleResp(it)}
-                    style={{ cursor: canEdit ? 'pointer' : 'default' }}
-                  >
-                    {RESP_LABEL[it.resp]}
-                  </span>
-                  <select
                     className={`percent-select ${band}`}
-                    value={it.percent}
-                    disabled={!canEditPercent}
-                    onChange={(e) => handlePercentChange(it, Number(e.target.value))}
+                    title="Automático: 0% sin seguimiento, 50% con seguimiento pendiente de QA, 100% con seguimiento aprobado"
                   >
-                    {PERCENT_OPTIONS.map((p) => (
-                      <option key={p} value={p}>
-                        {p}%
-                      </option>
-                    ))}
-                  </select>
+                    {it.percent}%
+                  </span>
                   <button
                     className={`hist-btn ${it.log.length ? 'has-log' : ''}`}
                     onClick={() => toggleHistory(it.id)}
@@ -176,29 +158,7 @@ export default function ChecklistSectionCard({ section, filterStatus, filterResp
                 </span>
               </div>
 
-              {pendingObs?.id === it.id && (
-                <div className="force-obs">
-                  <div className="msg">
-                    Este checkpoint está completo (100%). Registra una observación de seguimiento
-                    para cambiarlo a {pendingObs.newPercent}%.
-                  </div>
-                  <textarea
-                    value={obsText}
-                    onChange={(e) => setObsText(e.target.value)}
-                    placeholder="Describe qué motivó este cambio…"
-                  />
-                  <div className="actions">
-                    <button className="btn ghost small" onClick={() => setPendingObs(null)}>
-                      Cancelar
-                    </button>
-                    <button className="btn small" onClick={() => saveObs(it)}>
-                      Guardar y aplicar cambio
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {!pendingObs && openHistory.has(it.id) && (
+              {openHistory.has(it.id) && (
                 <div className="item-log">
                   {it.log.length ? (
                     it.log.map((l) => (
@@ -210,27 +170,43 @@ export default function ChecklistSectionCard({ section, filterStatus, filterResp
                             })}
                           </span>
                           <span className="log-text">{l.text}</span>
+                          {l.qaApproved ? (
+                            <span className="status-pill tone-green small" title={l.qaApprovedByNombre ? `Aprobado por ${l.qaApprovedByNombre}` : undefined}>
+                              Aprobado
+                            </span>
+                          ) : (
+                            <span className="status-pill tone-gold small">Pendiente de aprobación QA</span>
+                          )}
                         </div>
-                        {canEdit && (
-                          <button className="del-btn tiny" title="Eliminar" onClick={() => deleteLog(l.id)}>
-                            ×
-                          </button>
-                        )}
+                        <div className="log-entry-actions">
+                          {canEdit && !l.qaApproved && (
+                            <button className="btn ghost small" onClick={() => approveLog(l.id)}>
+                              Aprobar
+                            </button>
+                          )}
+                          {canEdit && (
+                            <button className="del-btn tiny" title="Eliminar" onClick={() => deleteLog(l.id)}>
+                              ×
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))
                   ) : (
                     <div className="log-empty">Sin observaciones registradas todavía.</div>
                   )}
-                  <div className="note-form">
-                    <textarea
-                      value={noteDrafts[it.id] ?? ''}
-                      onChange={(e) => setNoteDrafts((d) => ({ ...d, [it.id]: e.target.value }))}
-                      placeholder="Agregar observación de seguimiento…"
-                    />
-                    <button className="btn small" onClick={() => addNote(it)}>
-                      Agregar
-                    </button>
-                  </div>
+                  {canEditPercent && (
+                    <div className="note-form">
+                      <textarea
+                        value={noteDrafts[it.id] ?? ''}
+                        onChange={(e) => setNoteDrafts((d) => ({ ...d, [it.id]: e.target.value }))}
+                        placeholder="Agregar observación de seguimiento…"
+                      />
+                      <button className="btn small" onClick={() => addNote(it)}>
+                        Agregar
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </li>
@@ -247,10 +223,6 @@ export default function ChecklistSectionCard({ section, filterStatus, filterResp
             onKeyDown={(e) => e.key === 'Enter' && addItem()}
             placeholder={`Nuevo checkpoint para ${section.title.toLowerCase()}…`}
           />
-          <select value={newItemResp} onChange={(e) => setNewItemResp(e.target.value as ItemResponsible)}>
-            <option value="cliente">Cliente</option>
-            <option value="desarrollador">Desarrollador</option>
-          </select>
           <button className="btn small" onClick={addItem}>
             Agregar
           </button>

@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import DirectorySearch from '../components/DirectorySearch';
+import ProvidersPanel from '../components/ProvidersPanel';
 import { useSidebarStats } from '../context/ShellChromeContext';
 import { UsersAdminApi, type DirectoryUser } from '../lib/services';
 import { ACTOR_ROLE_LABEL, type ProfileLite } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
 
-type ManagedRole = 'desarrollador' | 'admin' | 'cliente';
+type ManagedRole = 'desarrollador' | 'admin' | 'qa';
 
 const ROLE_META: Record<ManagedRole, { code: string; title: string; hint: string; kicker: string; modalTitle: string }> = {
   desarrollador: {
@@ -24,12 +25,12 @@ const ROLE_META: Record<ManagedRole, { code: string; title: string; hint: string
     kicker: 'Jefes de proyecto',
     modalTitle: 'Crear cuenta de jefe de proyecto',
   },
-  cliente: {
-    code: 'CLI',
-    title: 'Clientes',
-    hint: 'Cuentas que se pueden elegir como "Cliente" al crear un proyecto. Solo ven sus propios proyectos: las actas pendientes/firmadas, su estado y contenido -- nada más del sistema.',
-    kicker: 'Clientes',
-    modalTitle: 'Crear cuenta de cliente',
+  qa: {
+    code: 'QA',
+    title: 'QA',
+    hint: 'Cuentas que pueden aprobar fases de proyecto (dan el "OK" de QA antes de que una fase quede cerrada). Reciben un correo cuando una fase se manda a revisión.',
+    kicker: 'QA',
+    modalTitle: 'Crear cuenta de QA',
   },
 };
 
@@ -262,7 +263,7 @@ export default function ToolsPage() {
   const isSuperadmin = profile?.role === 'superadmin';
   const [devStats, setDevStats] = useState({ count: 0, confirmed: 0 });
   const [adminStats, setAdminStats] = useState({ count: 0, confirmed: 0 });
-  const [clienteStats, setClienteStats] = useState({ count: 0, confirmed: 0 });
+  const [qaStats, setQaStats] = useState({ count: 0, confirmed: 0 });
 
   useSidebarStats(
     useMemo(
@@ -271,15 +272,15 @@ export default function ToolsPage() {
         items: [
           ...(isSuperadmin ? [{ label: 'Jefes de proyecto', value: String(adminStats.count), note: 'con acceso total' }] : []),
           { label: 'Personas asignadas', value: String(devStats.count), note: 'responsables' },
-          { label: 'Clientes', value: String(clienteStats.count), note: 'con portal de firma' },
+          ...(isSuperadmin ? [{ label: 'QA', value: String(qaStats.count), note: 'aprueban fases' }] : []),
           {
             label: 'Confirmadas',
-            value: String(devStats.confirmed + clienteStats.confirmed + (isSuperadmin ? adminStats.confirmed : 0)),
+            value: String(devStats.confirmed + (isSuperadmin ? adminStats.confirmed + qaStats.confirmed : 0)),
             note: 'con acceso',
           },
         ],
       }),
-      [devStats, adminStats, clienteStats, isSuperadmin],
+      [devStats, adminStats, qaStats, isSuperadmin],
     ),
   );
 
@@ -295,15 +296,15 @@ export default function ToolsPage() {
           <h1>Usuarios</h1>
         </div>
         <p className="intro">
-          Crea y administra las cuentas que se pueden asignar como responsable o cliente al crear un
-          proyecto.
+          Crea y administra las cuentas que se pueden asignar como responsable al crear un proyecto.
           {isSuperadmin && ' Como superadmin, también puedes crear cuentas de jefe de proyecto.'}
         </p>
       </div>
 
       {isSuperadmin && <UserRoleSection role="admin" onStats={setAdminStats} />}
       <UserRoleSection role="desarrollador" onStats={setDevStats} />
-      <UserRoleSection role="cliente" onStats={setClienteStats} />
+      {isSuperadmin && <UserRoleSection role="qa" onStats={setQaStats} />}
+      <ProvidersPanel />
     </AppShell>
   );
 }

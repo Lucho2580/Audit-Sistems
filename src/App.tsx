@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
 import ProjectsList from './pages/ProjectsList';
 import ProjectDetail from './pages/ProjectDetail';
+import ProjectWeeklyProgress from './pages/ProjectWeeklyProgress';
 import ClientPortal from './pages/ClientPortal';
 import SignPage from './pages/SignPage';
 import TimelinePage from './pages/TimelinePage';
@@ -59,6 +60,16 @@ export default function App() {
           <PrivateRoute>
             <StaffOnlyRoute>
               <ProjectDetail />
+            </StaffOnlyRoute>
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/projects/:id/informe-semanal"
+        element={
+          <PrivateRoute>
+            <StaffOnlyRoute>
+              <ProjectWeeklyProgress />
             </StaffOnlyRoute>
           </PrivateRoute>
         }

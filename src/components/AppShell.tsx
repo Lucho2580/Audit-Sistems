@@ -1,16 +1,52 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSidebarPanel } from '../context/ShellChromeContext';
 import laViandaBlanco from '../assets/lavianda-blanco.png';
 
+const COLLAPSE_KEY = 'shell-sidebar-collapsed';
+
 function ShellSidebar() {
   const { session, profile, signOut } = useAuth();
   const { panel, dashboardToggle } = useSidebarPanel();
+  // Preferencia por navegador, no por cuenta -- se guarda en localStorage
+  // para que no se "reabra sola" cada vez que se navega o se recarga.
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(COLLAPSE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   if (!session) return null;
+
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+      } catch {
+        // localStorage puede no estar disponible (modo privado estricto) -- no es crítico
+      }
+      return next;
+    });
+  }
+
+  if (collapsed) {
+    return (
+      <aside className="shell-side collapsed">
+        <button className="shell-collapse-toggle" onClick={toggleCollapsed} title="Mostrar barra lateral">
+          »
+        </button>
+      </aside>
+    );
+  }
 
   return (
     <aside className="shell-side">
+      <button className="shell-collapse-toggle" onClick={toggleCollapsed} title="Ocultar barra lateral">
+        «
+      </button>
       <div className="shell-brand">
         <img className="shell-logo" src={laViandaBlanco} alt="La Vianda" />
         <div className="shell-brand-title">

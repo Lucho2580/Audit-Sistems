@@ -1,6 +1,5 @@
-export type UserRole = 'superadmin' | 'admin' | 'desarrollador' | 'cliente';
+export type UserRole = 'superadmin' | 'admin' | 'desarrollador' | 'cliente' | 'qa';
 export type ProjectStatus = 'levantamiento' | 'desarrollo' | 'validacion' | 'cerrado';
-export type ItemResponsible = 'cliente' | 'desarrollador';
 export type MeetingState = 'programada' | 'reprogramada' | 'realizada' | 'no_realizada';
 
 export interface Profile {
@@ -34,6 +33,7 @@ export const ACTOR_ROLE_LABEL: Record<UserRole, string> = {
   admin: 'Jefe de proyecto',
   desarrollador: 'Persona asignada',
   cliente: 'Cliente',
+  qa: 'QA',
 };
 
 export interface ItemLog {
@@ -41,13 +41,18 @@ export interface ItemLog {
   text: string;
   authorEmail?: string;
   createdAt: string;
+  qaApproved: boolean;
+  qaApprovedByNombre: string | null;
+  qaApprovedAt: string | null;
 }
 
 export interface ChecklistItem {
   id: string;
   n: number;
   text: string;
-  resp: ItemResponsible;
+  assignedTo: string | null;
+  assignedToNombre: string | null;
+  dueDate: string | null;
   percent: number;
   log: ItemLog[];
 }
@@ -78,7 +83,13 @@ export interface Project {
   status: ProjectStatus;
   sections: Section[];
   stats?: Stats;
+  // Resumen liviano del % de avance de cada una de las 6 fases -- para
+  // mostrar el desglose por fase en el listado general de proyectos sin
+  // tener que entrar al detalle de cada uno.
+  phases: ProjectPhaseSummary[];
   createdAt: string;
+  startDate: string | null;
+  deadlineDate: string | null;
   deliveryDate?: string | null;
   finalDeliveryDate?: string | null;
   delayDays?: number;
@@ -112,6 +123,14 @@ export type PhaseKey =
   | 'entrega'
   | 'fin';
 
+export type QaStatus = 'pendiente' | 'en_revision' | 'aprobada';
+
+export const QA_STATUS_META: Record<QaStatus, string> = {
+  pendiente: 'Pendiente de aprobación',
+  en_revision: 'En revisión de QA',
+  aprobada: 'Aprobada por QA',
+};
+
 export interface ProjectPhase {
   id: string;
   projectId: string;
@@ -120,6 +139,81 @@ export interface ProjectPhase {
   orderIndex: number;
   startDate: string | null;
   durationDays: number;
+  percent: number;
+  qaStatus: QaStatus;
+  qaSubmittedAt: string | null;
+  qaApprovedBy: string | null;
+  qaApprovedAt: string | null;
+}
+
+export interface ProjectPhaseSummary {
+  key: PhaseKey;
+  label: string;
+  orderIndex: number;
+  percent: number;
+}
+
+// Cada tarea de una fase tiene su propio responsable (persona puntual, no
+// el "cliente"/"desarrollador" binario de los checklist_items), fechas y
+// avance -- es lo que llena la tabla por hito (fase) del punto 2, y lo que
+// alimenta el cálculo de atraso (punto 4).
+export interface PhaseTask {
+  id: string;
+  phaseId: string;
+  projectId: string;
+  text: string;
+  assignedTo: string | null;
+  assignedToNombre: string | null;
+  startDate: string | null;
+  plannedEndDate: string | null;
+  percent: number;
+  observaciones: string | null;
+}
+
+export type DelayStatus = 'completado' | 'en_tiempo' | 'en_riesgo' | 'atrasado';
+
+export const DELAY_STATUS_META: Record<DelayStatus, string> = {
+  completado: 'Completada',
+  en_tiempo: 'En tiempo',
+  en_riesgo: 'En riesgo',
+  atrasado: 'Atrasada',
+};
+
+// Avance esperado = cuánto debería llevar según el tiempo ya transcurrido de
+// la duración planeada. Sin fechas, o antes de la fecha de inicio, no hay
+// brecha que calcular todavía (queda en 0).
+export function taskExpectedPct(
+  task: Pick<PhaseTask, 'startDate' | 'plannedEndDate'>,
+  today: Date = new Date(),
+): number | null {
+  if (!task.startDate || !task.plannedEndDate) return null;
+  const todayStr = today.toISOString().slice(0, 10);
+  if (todayStr < task.startDate) return 0;
+  const totalDays = Math.max(1, daysBetween(task.startDate, task.plannedEndDate));
+  const elapsedDays = Math.max(0, daysBetween(task.startDate, todayStr));
+  return Math.min(100, (elapsedDays / totalDays) * 100);
+}
+
+// Brecha = esperado - real. Sin fechas, no hay forma de calcular atraso
+// (queda "en_tiempo" por defecto).
+export function taskDelayStatus(
+  task: Pick<PhaseTask, 'percent' | 'startDate' | 'plannedEndDate'>,
+  today: Date = new Date(),
+): DelayStatus {
+  if (task.percent >= 100) return 'completado';
+  const expectedPct = taskExpectedPct(task, today);
+  if (expectedPct === null) return 'en_tiempo';
+  const gap = expectedPct - task.percent;
+  if (gap <= 5) return 'en_tiempo';
+  if (gap <= 20) return 'en_riesgo';
+  return 'atrasado';
+}
+
+export function worstDelayStatus(statuses: DelayStatus[]): DelayStatus {
+  if (statuses.some((s) => s === 'atrasado')) return 'atrasado';
+  if (statuses.some((s) => s === 'en_riesgo')) return 'en_riesgo';
+  if (statuses.length > 0 && statuses.every((s) => s === 'completado')) return 'completado';
+  return 'en_tiempo';
 }
 
 export interface Participant {
@@ -179,11 +273,6 @@ export const MEETING_STATE_META: Record<MeetingState, string> = {
   reprogramada: 'Reprogramada',
   realizada: 'Realizada',
   no_realizada: 'No realizada',
-};
-
-export const RESP_LABEL: Record<ItemResponsible, string> = {
-  cliente: 'Cliente',
-  desarrollador: 'Desarrollador',
 };
 
 export const PERCENT_OPTIONS = [0, 10, 25, 40, 50, 60, 75, 90, 100];

@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import {
-  STATUS_META, MEETING_STATE_META, RESP_LABEL,
+  STATUS_META, MEETING_STATE_META,
   type Project, type Meeting, type Section,
 } from '../types/domain';
 
@@ -91,7 +91,7 @@ function pdfChecklistWithLog(doc: jsPDF, y: number, sec: Section) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2); doc.setTextColor(...PDF_C.ink);
     doc.text(`${sec.code}-${String(it.n).padStart(2, '0')}`, colX[0], y);
     doc.text(trunc(it.text, 58), colX[1], y);
-    doc.text(RESP_LABEL[it.resp], colX[2], y);
+    doc.text(trunc(it.assignedToNombre ?? 'Sin asignar', 32), colX[2], y);
     doc.text(it.percent + '%', colX[3], y);
     doc.text(String(it.log.length), colX[4], y);
     let innerY = y + 12;

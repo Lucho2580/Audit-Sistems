@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppShell from '../components/AppShell';
+import GlobalGantt from '../components/GlobalGantt';
 import { useSidebarStats } from '../context/ShellChromeContext';
-import { AuditApi } from '../lib/services';
-import type { AuditLogEntry } from '../types/domain';
+import { AuditApi, ProjectsApi } from '../lib/services';
+import type { AuditLogEntry, Project } from '../types/domain';
 
 type TimelineEntry = AuditLogEntry & { projectId: string | null; projectName: string | null };
 
@@ -27,8 +28,9 @@ function isoDate(dateStr: string) {
 
 export default function TimelinePage() {
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'calendar' | 'list'>('calendar');
+  const [view, setView] = useState<'calendar' | 'list' | 'gantt'>('calendar');
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -37,8 +39,11 @@ export default function TimelinePage() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   useEffect(() => {
-    AuditApi.all()
-      .then(setEntries)
+    Promise.all([AuditApi.all(), ProjectsApi.list()])
+      .then(([auditEntries, projectList]) => {
+        setEntries(auditEntries);
+        setProjects(projectList);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -109,6 +114,9 @@ export default function TimelinePage() {
             <button className={`view-tab ${view === 'list' ? 'active' : ''}`} onClick={() => setView('list')}>
               Línea de tiempo
             </button>
+            <button className={`view-tab ${view === 'gantt' ? 'active' : ''}`} onClick={() => setView('gantt')}>
+              Gantt general
+            </button>
           </div>
         </div>
       </div>
@@ -148,35 +156,39 @@ export default function TimelinePage() {
             </div>
           )}
 
-          <div className="section">
-            <div className="section-head">
-              <div className="title-block">
-                <span className="code-tag">LOG</span>
-                <h2>{selectedDay ? `Actividad del ${selectedDay}` : 'Actividad reciente'}</h2>
+          {view === 'gantt' ? (
+            <GlobalGantt projects={projects} />
+          ) : (
+            <div className="section">
+              <div className="section-head">
+                <div className="title-block">
+                  <span className="code-tag">LOG</span>
+                  <h2>{selectedDay ? `Actividad del ${selectedDay}` : 'Actividad reciente'}</h2>
+                </div>
+                {selectedDay && (
+                  <button className="btn ghost small" onClick={() => setSelectedDay(null)}>Ver todo</button>
+                )}
               </div>
-              {selectedDay && (
-                <button className="btn ghost small" onClick={() => setSelectedDay(null)}>Ver todo</button>
+              {visible.length === 0 ? (
+                <div className="empty-state">Sin movimientos registrados todavía.</div>
+              ) : (
+                <div className="audit-panel">
+                  {visible.map((e) => (
+                    <div className="audit-row" key={e.id}>
+                      <span className="audit-date">
+                        {new Date(e.createdAt).toLocaleString('es-ES', {
+                          day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                        })}
+                      </span>
+                      <span className="audit-action">{ACTION_LABEL[e.action]}</span>
+                      <span className="audit-desc">{e.projectName ?? 'Proyecto eliminado'}</span>
+                      <span className="audit-actor">{e.actorEmail ?? 'enlace público'}</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-            {visible.length === 0 ? (
-              <div className="empty-state">Sin movimientos registrados todavía.</div>
-            ) : (
-              <div className="audit-panel">
-                {visible.map((e) => (
-                  <div className="audit-row" key={e.id}>
-                    <span className="audit-date">
-                      {new Date(e.createdAt).toLocaleString('es-ES', {
-                        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-                      })}
-                    </span>
-                    <span className="audit-action">{ACTION_LABEL[e.action]}</span>
-                    <span className="audit-desc">{e.projectName ?? 'Proyecto eliminado'}</span>
-                    <span className="audit-actor">{e.actorEmail ?? 'enlace público'}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
         </>
       )}
     </AppShell>

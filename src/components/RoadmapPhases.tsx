@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PhasesApi } from '../lib/services';
-import type { ProjectPhase } from '../types/domain';
+import { QA_STATUS_META, taskDelayStatus, type PhaseTask, type ProjectPhase } from '../types/domain';
 
 interface Props {
   phases: ProjectPhase[];
+  tasks: PhaseTask[];
   canEdit: boolean;
+  minDate: string | null; // fecha de inicio del proyecto
+  maxDate: string | null; // fecha de entrega esperada del proyecto
   onChanged: () => void;
 }
 
@@ -12,6 +15,9 @@ const PHASE_COLORS = [
   'var(--blue)', 'var(--gold)', 'var(--rust)', 'var(--green)',
   'var(--slate)', 'var(--ink-soft)', 'var(--blue)', 'var(--gold)',
 ];
+const TASK_STATUS_COLOR: Record<string, string> = {
+  completado: 'var(--green)', en_tiempo: 'var(--blue)', en_riesgo: 'var(--gold)', atrasado: 'var(--rust)',
+};
 const LABEL_COL = 160;
 const DAY_MS = 86400000;
 const DAY_W = 22;
@@ -28,7 +34,12 @@ function fmtShort(dateStr: string) {
   return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
 }
 
-export default function RoadmapPhases({ phases, canEdit, onChanged }: Props) {
+// El Gantt general del proyecto (ítem 10): una fila por fase (arrastrable,
+// como antes) seguida de una sub-fila por cada una de sus tareas (más
+// angosta, coloreada por estado de atraso), con una línea conectora simple
+// entre el fin de una fase y el inicio de la siguiente (dependencia
+// secuencial -- no un editor de dependencias libres).
+export default function RoadmapPhases({ phases, tasks, canEdit, minDate, maxDate, onChanged }: Props) {
   const [drafts, setDrafts] = useState<Record<string, { startDate: string; durationDays: number }>>({});
 
   useEffect(() => {
@@ -109,8 +120,23 @@ export default function RoadmapPhases({ phases, canEdit, onChanged }: Props) {
     [phases, drafts],
   );
 
-  const minTime = ranges.length ? Math.min(...ranges.map((r) => r.start.getTime())) : null;
-  const maxTime = ranges.length ? Math.max(...ranges.map((r) => r.end.getTime())) : null;
+  const taskRanges = useMemo(
+    () =>
+      tasks
+        .map((t) => {
+          if (!t.startDate || !t.plannedEndDate) return null;
+          return { task: t, start: new Date(t.startDate + 'T00:00:00'), end: new Date(t.plannedEndDate + 'T00:00:00') };
+        })
+        .filter((r): r is { task: PhaseTask; start: Date; end: Date } => r !== null),
+    [tasks],
+  );
+
+  const allTimes = [
+    ...ranges.flatMap((r) => [r.start.getTime(), r.end.getTime()]),
+    ...taskRanges.flatMap((r) => [r.start.getTime(), r.end.getTime()]),
+  ];
+  const minTime = allTimes.length ? Math.min(...allTimes) : null;
+  const maxTime = allTimes.length ? Math.max(...allTimes) : null;
   // Origen con 2 días de aire a la izquierda, igual que el mockup, para que la
   // primera barra no quede pegada al borde.
   const originTime = minTime !== null ? minTime - 2 * DAY_MS : null;
@@ -140,6 +166,8 @@ export default function RoadmapPhases({ phases, canEdit, onChanged }: Props) {
     return Math.round((now - originTime) / DAY_MS) * DAY_W;
   }, [originTime, totalDays]);
 
+  const hasAnyRange = ranges.length > 0 || taskRanges.length > 0;
+
   return (
     <div className="section">
       <div className="section-head">
@@ -147,16 +175,16 @@ export default function RoadmapPhases({ phases, canEdit, onChanged }: Props) {
           <span className="code-tag">Gantt</span>
           <h2>Diagrama de Gantt</h2>
         </div>
-        {ranges.length > 0 && (
+        {hasAnyRange && (
           <span className="gantt-hint">
-            {canEdit ? 'Arrastra una barra para moverla; arrastra su borde derecho para cambiar la duración.' : ''}
+            {canEdit ? 'Arrastra una barra de fase para moverla; arrastra su borde derecho para cambiar la duración.' : ''}
           </span>
         )}
       </div>
 
-      {ranges.length === 0 ? (
+      {!hasAnyRange ? (
         <div className="empty-state">
-          Configura al menos una fecha de inicio para ver el gráfico del roadmap.
+          Configura al menos una fecha de inicio (de fase o de tarea) para ver el gráfico del roadmap.
         </div>
       ) : (
         <div className="gantt">
@@ -183,6 +211,7 @@ export default function RoadmapPhases({ phases, canEdit, onChanged }: Props) {
             </div>
             {phases.map((phase, idx) => {
               const range = ranges.find((r) => r.phase.id === phase.id);
+              const prevRange = idx > 0 ? ranges.find((r) => r.phase.id === phases[idx - 1].id) : undefined;
               const leftPx = range ? Math.round((range.start.getTime() - originTime!) / DAY_MS) * DAY_W : 0;
               const widthPx = range
                 ? Math.max(DAY_W, Math.round((range.end.getTime() - range.start.getTime()) / DAY_MS) * DAY_W)
@@ -190,51 +219,86 @@ export default function RoadmapPhases({ phases, canEdit, onChanged }: Props) {
               const showLabelInside = widthPx >= 90;
               const rightSpacePx = trackW - (leftPx + widthPx);
               const labelOnLeft = !showLabelInside && rightSpacePx < 90;
+              const phaseTasks = tasks.filter((t) => t.phaseId === phase.id);
+              const prevEndPx = prevRange ? Math.round((prevRange.end.getTime() - originTime!) / DAY_MS) * DAY_W : null;
+
               return (
-                <div className="gantt-row" key={phase.id} style={{ width: LABEL_COL + trackW }}>
-                  <span className="gantt-row-label" title={phase.label}>{phase.label}</span>
-                  <div className="gantt-row-track" style={{ width: trackW }}>
-                    {range ? (
-                      <>
-                        <div
-                          className={`gantt-bar${canEdit ? ' draggable' : ''}`}
-                          onPointerDown={canEdit ? dragPhase(phase, 'move') : undefined}
-                          style={{
-                            left: leftPx,
-                            width: widthPx,
-                            background: PHASE_COLORS[idx % PHASE_COLORS.length],
-                          }}
-                          title={`${phase.label}: ${range.start.toISOString().slice(0, 10)} → ${range.end.toISOString().slice(0, 10)}`}
-                          aria-label={`${phase.label}: ${range.start.toISOString().slice(0, 10)} a ${range.end.toISOString().slice(0, 10)}, ${phase.durationDays} días`}
-                        >
-                          {showLabelInside && <span className="gantt-bar-label">{phase.durationDays} d</span>}
-                          {canEdit && (
+                <div key={phase.id}>
+                  <div className="gantt-row" style={{ width: LABEL_COL + trackW }}>
+                    <span className="gantt-row-label" title={phase.label}>
+                      {phase.label}
+                      <span className={`qa-status-dot qa-${phase.qaStatus}`} title={QA_STATUS_META[phase.qaStatus]} />
+                    </span>
+                    <div className="gantt-row-track" style={{ width: trackW }}>
+                      {range && prevEndPx !== null && (
+                        <span className="gantt-dependency" style={{ left: prevEndPx, width: Math.max(0, leftPx - prevEndPx) }} />
+                      )}
+                      {range ? (
+                        <>
+                          <div
+                            className={`gantt-bar${canEdit ? ' draggable' : ''}`}
+                            onPointerDown={canEdit ? dragPhase(phase, 'move') : undefined}
+                            style={{
+                              left: leftPx,
+                              width: widthPx,
+                              background: PHASE_COLORS[idx % PHASE_COLORS.length],
+                            }}
+                            title={`${phase.label}: ${range.start.toISOString().slice(0, 10)} → ${range.end.toISOString().slice(0, 10)}`}
+                            aria-label={`${phase.label}: ${range.start.toISOString().slice(0, 10)} a ${range.end.toISOString().slice(0, 10)}, ${phase.durationDays} días`}
+                          >
+                            {showLabelInside && <span className="gantt-bar-label">{phase.durationDays} d</span>}
+                            {canEdit && (
+                              <span
+                                className="gantt-bar-resize"
+                                onPointerDown={(e) => {
+                                  e.stopPropagation();
+                                  dragPhase(phase, 'resize')(e);
+                                }}
+                              />
+                            )}
+                          </div>
+                          {!showLabelInside && (
                             <span
-                              className="gantt-bar-resize"
-                              onPointerDown={(e) => {
-                                e.stopPropagation();
-                                dragPhase(phase, 'resize')(e);
-                              }}
+                              className="gantt-bar-label-outside"
+                              style={
+                                labelOnLeft
+                                  ? { right: trackW - leftPx + 8, textAlign: 'right' }
+                                  : { left: leftPx + widthPx + 8 }
+                              }
+                            >
+                              {phase.durationDays} d
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="gantt-row-empty">Sin fecha de inicio</span>
+                      )}
+                    </div>
+                  </div>
+                  {phaseTasks.map((task) => {
+                    const tRange = taskRanges.find((r) => r.task.id === task.id);
+                    const tLeftPx = tRange ? Math.round((tRange.start.getTime() - originTime!) / DAY_MS) * DAY_W : 0;
+                    const tWidthPx = tRange
+                      ? Math.max(DAY_W, Math.round((tRange.end.getTime() - tRange.start.getTime()) / DAY_MS) * DAY_W)
+                      : 0;
+                    const status = taskDelayStatus(task);
+                    return (
+                      <div className="gantt-row gantt-row-task" key={task.id} style={{ width: LABEL_COL + trackW }}>
+                        <span className="gantt-row-label" title={task.text}>{task.text}</span>
+                        <div className="gantt-row-track" style={{ width: trackW }}>
+                          {tRange ? (
+                            <div
+                              className="gantt-bar gantt-bar-task"
+                              style={{ left: tLeftPx, width: tWidthPx, background: TASK_STATUS_COLOR[status] }}
+                              title={`${task.text}: ${task.percent}% (${status})`}
                             />
+                          ) : (
+                            <span className="gantt-row-empty">Sin fechas</span>
                           )}
                         </div>
-                        {!showLabelInside && (
-                          <span
-                            className="gantt-bar-label-outside"
-                            style={
-                              labelOnLeft
-                                ? { right: trackW - leftPx + 8, textAlign: 'right' }
-                                : { left: leftPx + widthPx + 8 }
-                            }
-                          >
-                            {phase.durationDays} d
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="gantt-row-empty">Sin fecha de inicio</span>
-                    )}
-                  </div>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
@@ -258,6 +322,8 @@ export default function RoadmapPhases({ phases, canEdit, onChanged }: Props) {
                     type="date"
                     value={draft.startDate}
                     disabled={!canEdit}
+                    min={minDate ?? undefined}
+                    max={maxDate ?? undefined}
                     onChange={(e) =>
                       setDrafts((d) => ({ ...d, [phase.id]: { ...draft, startDate: e.target.value } }))
                     }
