@@ -729,6 +729,7 @@ export const WeeklyProgressApi = {
       current_week_start: string; current_week_submitted: boolean; current_week_deadline: string;
       week_milestones_total: number; week_milestones_done: number; overdue_count: number;
       undated_count: number; next_due_date: string | null; next_due_code: string | null;
+      start_date: string | null; deadline_date: string | null; in_window: boolean;
     }[]>(res as any);
     return rows.map((r) => ({
       projectId: r.project_id, code: r.code, name: r.name, status: r.status,
@@ -740,6 +741,7 @@ export const WeeklyProgressApi = {
       overdueCount: Number(r.overdue_count ?? 0),
       undatedCount: Number(r.undated_count ?? 0),
       nextDueDate: r.next_due_date, nextDueCode: r.next_due_code,
+      startDate: r.start_date, deadlineDate: r.deadline_date, inWindow: r.in_window !== false,
     }));
   },
 };

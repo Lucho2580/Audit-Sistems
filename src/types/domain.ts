@@ -435,6 +435,9 @@ export interface WeeklyProgressOverviewRow {
   undatedCount: number;
   nextDueDate: string | null;
   nextDueCode: string | null;
+  startDate: string | null;
+  deadlineDate: string | null;
+  inWindow: boolean; // hoy está dentro de inicio..plazo del proyecto
 }
 
 const BOGOTA_OFFSET_MS = 5 * 3600000; // Colombia: UTC-5 todo el año, sin horario de verano.

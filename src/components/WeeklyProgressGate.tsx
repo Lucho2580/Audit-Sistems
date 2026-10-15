@@ -36,7 +36,9 @@ export default function WeeklyProgressGate({ children }: { children: ReactNode }
       const rows = await WeeklyProgressApi.listOverview();
       const now = Date.now();
       const pend = rows.filter(
-        (r) => r.status !== 'cerrado' && !r.currentWeekSubmitted && now <= new Date(r.currentWeekDeadline).getTime(),
+        // Solo dentro del plazo del proyecto (inicio..entrega): el Informe
+        // semanal muestra también los vencidos, pero el aviso no los exige.
+        (r) => r.status !== 'cerrado' && r.inWindow && !r.currentWeekSubmitted && now <= new Date(r.currentWeekDeadline).getTime(),
       );
       setPending(pend);
     } finally {

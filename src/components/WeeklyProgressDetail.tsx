@@ -1,214 +1,179 @@
 import { useEffect, useState } from 'react';
 import { WeeklyProgressApi } from '../lib/services';
-import type { MilestoneReportStatus, WeeklyMilestoneLine, WeeklyProgressDetail as WeeklyProgressDetailData, WeeklyProgressWeek } from '../types/domain';
+import type { WeeklyMilestoneLine, WeeklyProgressDetail as WeeklyProgressDetailData, WeeklyProgressWeek } from '../types/domain';
 
 interface Props {
   projectId: string;
 }
 
-function indicatorTone(indicator: number): 'green' | 'gold' | 'rust' {
-  if (indicator >= 70) return 'green';
-  if (indicator >= 40) return 'gold';
-  return 'rust';
+const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+function parse(iso: string) {
+  return new Date(iso + 'T00:00:00');
 }
 
-function fmtDate(iso: string) {
-  return new Date(iso + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+// "5–10 oct" (lunes a sábado), o "28 sep–3 oct" si cruza de mes.
+function weekRange(weekStart: string) {
+  const s = parse(weekStart);
+  const e = new Date(s);
+  e.setDate(e.getDate() + 5);
+  return s.getMonth() === e.getMonth()
+    ? `${s.getDate()}–${e.getDate()} ${MONTHS[e.getMonth()]}`
+    : `${s.getDate()} ${MONTHS[s.getMonth()]}–${e.getDate()} ${MONTHS[e.getMonth()]}`;
 }
 
-function fmtDateLong(iso: string) {
-  return new Date(iso + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
+function fmtDay(iso: string) {
+  return parse(iso).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-// Nunca solo color: cada estado trae su propio ícono además del tono, para
-// que alguien con daltonismo (rust/gold del resto de la app quedan a solo
-// ΔE 6 entre sí -- ver hallazgo del validador) igual pueda distinguirlos.
-const WEEK_META: Record<WeeklyProgressWeek['status'], { tone: string; icon: string; label: string }> = {
-  reportado: { tone: 'green', icon: '✓', label: 'Reportada' },
-  perdida: { tone: 'rust', icon: '✕', label: 'Perdida' },
-  en_curso: { tone: 'blue', icon: '···', label: 'En curso' },
+function fmtSent(iso: string) {
+  return new Date(iso).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+}
+
+// Estado de cada hito reportado, en una sola insignia (como en el diseño).
+function lineBadge(line: WeeklyMilestoneLine): { label: string; tone: string } {
+  if (line.status === 'cumplido') {
+    if (line.qa === 'aprobado') return { label: 'Aprobado por QA', tone: 'green' };
+    if (line.qa === 'rechazado') return { label: 'Rechazado por QA', tone: 'rust' };
+    return { label: 'Cumplido · pendiente QA', tone: 'green' };
+  }
+  if (line.status === 'en_curso') return { label: 'En curso', tone: 'gold' };
+  return { label: 'Sin avance', tone: 'rust' };
+}
+
+const REPORT_META: Record<WeeklyProgressWeek['status'], { label: string; tone: string }> = {
+  reportado: { label: 'A tiempo', tone: 'green' },
+  perdida: { label: 'No reportó', tone: 'rust' },
+  en_curso: { label: 'En curso', tone: 'slate' },
 };
 
-const LINE_META: Record<MilestoneReportStatus, { tone: string; label: string }> = {
-  cumplido: { tone: 'green', label: 'Cumplido' },
-  en_curso: { tone: 'gold', label: 'En curso' },
-  sin_avance: { tone: 'rust', label: 'Sin avance' },
-};
-
-function qaLabel(line: WeeklyMilestoneLine): string | null {
-  if (line.status !== 'cumplido') return null;
-  if (line.qa === 'aprobado') return 'Aprobado por QA';
-  if (line.qa === 'rechazado') return 'Rechazado por QA';
-  return 'Pendiente de QA';
-}
-
+// Detalle de hitos y semanas de un proyecto: a la izquierda el reporte de la
+// semana elegida hito por hito; a la derecha las semanas (cumplidos,
+// aprobados por QA, si se reportó) para elegir cuál ver.
 export default function WeeklyProgressDetail({ projectId }: Props) {
   const [detail, setDetail] = useState<WeeklyProgressDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
-    setDetail(null);
-    setSelectedWeek(null);
+    let active = true;
     WeeklyProgressApi.getDetail(projectId)
       .then((d) => {
+        if (!active) return;
         setDetail(d);
-        // Por defecto muestra la semana más reciente (la última de la lista),
-        // así el reporte se ve de una sin tener que hacer clic primero.
-        if (d.weeks.length) setSelectedWeek(d.weeks[d.weeks.length - 1].weekStart);
+        setSelectedWeek(d.weeks.length ? d.weeks[d.weeks.length - 1].weekStart : null);
       })
-      .finally(() => setLoading(false));
+      .catch(() => { if (active) setDetail(null); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [projectId]);
 
   if (loading) return <div className="empty-state">Cargando detalle…</div>;
   if (!detail) return <div className="empty-state">No se pudo cargar el detalle.</div>;
+  if (detail.weeks.length === 0) {
+    return <div className="empty-state">Todavía no hay semanas que rastrear (el proyecto no tiene persona asignada).</div>;
+  }
 
-  const tone = indicatorTone(detail.indicator);
-  // Semanas con hitos (planeados según su fecha) -- la gráfica muestra
-  // cumplidos / planeados de cada una.
-  const milestoneWeeks = detail.weeks.filter((w) => (w.milestonesTotal ?? 0) > 0);
-  const selectedWeekData = detail.weeks.find((w) => w.weekStart === selectedWeek) ?? null;
+  const weeksDesc = detail.weeks.slice().reverse();
+  const visibleWeeks = showAll ? weeksDesc : weeksDesc.slice(0, 8);
+  const week = detail.weeks.find((w) => w.weekStart === selectedWeek) ?? weeksDesc[0];
+  const isCurrent = week.status === 'en_curso' || week.weekStart === weeksDesc[0].weekStart;
+  const items = week.items ?? [];
+
+  const heading =
+    week.status === 'reportado'
+      ? `${isCurrent ? 'Reporte de esta semana' : `Reporte del ${weekRange(week.weekStart)}`}${week.submittedAt ? ` · enviado ${fmtSent(week.submittedAt)}` : ''}`
+      : week.status === 'perdida'
+        ? `Semana del ${weekRange(week.weekStart)} · no se reportó`
+        : `Semana del ${weekRange(week.weekStart)} · todavía sin reporte`;
 
   return (
-    <div className="weekly-detail">
-      <div className="weekly-detail-summary">
-        <div className="weekly-detail-kpi">
-          <div className="label">Índice de cumplimiento</div>
-          <div className={`value tone-${tone}`}>{detail.indicator}%</div>
-        </div>
-        <p className="weekly-detail-explain">
-          {detail.frozen ? (
-            <>Indicador <b>congelado</b>: el proyecto ya se marcó "Cerrado", así que dejó de recalcularse.</>
-          ) : (
-            <>
-              De las <b>{detail.weeksTracked}</b> semanas rastreadas desde que hay persona asignada,{' '}
-              <b>{detail.weeksReported}</b> se reportaron a tiempo y <b>{detail.weeksMissed}</b> se perdieron.
-              Cada semana perdida resta <b>{detail.penaltyPerWeek}</b> puntos (100 ÷ {detail.weeksRemainingYear}{' '}
-              semanas que quedan del año) → 100 − {detail.weeksMissed}×{detail.penaltyPerWeek} ={' '}
-              <b>{detail.indicator}%</b>.
-            </>
-          )}
-        </p>
+    <div className="wmd">
+      <div className="wmd-week">
+        <span className="pcard-eyebrow">{heading}</span>
+        {(week.milestonesTotal ?? 0) > 0 && (
+          <span className="wmd-week-sum">
+            {week.milestonesDone} de {week.milestonesTotal} hitos cumplidos · {week.milestonesApproved} aprobados por QA
+          </span>
+        )}
+        {items.length > 0 ? (
+          <ul className="wmd-lines">
+            {items.map((line) => {
+              const badge = lineBadge(line);
+              return (
+                <li className="wmd-line" key={line.code}>
+                  <div className="wmd-line-head">
+                    <span className="wmd-line-name">
+                      <span className="section-progress-code">{line.code}</span>
+                      <span className="wmd-line-title" title={line.title}>{line.title}</span>
+                    </span>
+                    <span className={`pcard-badge tone-${badge.tone}`}>{badge.label}</span>
+                  </div>
+                  <span className={`wr-due${line.late ? ' late' : ''}`}>
+                    {line.late ? `Venció ${fmtDay(line.dueDate)} · reportado como atrasado` : `Vence ${fmtDay(line.dueDate)}`}
+                  </span>
+                  {line.note && <span className="wmd-line-note">“{line.note}”</span>}
+                  {line.qa === 'rechazado' && line.qaReason && (
+                    <span className="wmd-line-note rejected">Motivo del rechazo de QA: {line.qaReason}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="wmd-empty">
+            {week.status === 'perdida'
+              ? 'La persona asignada no reportó esta semana (se pasó el plazo del sábado 12:00 pm).'
+              : week.status === 'en_curso'
+                ? 'Todavía no hay reporte para esta semana.'
+                : 'Esta semana no tenía hitos con fecha.'}
+          </p>
+        )}
+        {week.note && (
+          <p className="wmd-general"><b>Comentario general:</b> {week.note}</p>
+        )}
       </div>
 
-      <div className="weekly-detail-grid">
-        <div className="dash-card">
-          <div className="dash-card-title">
-            <span>Semana a semana</span>
-            <span className="weekly-strip-legend">
-              {(Object.keys(WEEK_META) as WeeklyProgressWeek['status'][]).map((s) => (
-                <span key={s} className="weekly-strip-legend-item">
-                  <span className={`weekly-cell sm tone-${WEEK_META[s].tone}`} />
-                  {WEEK_META[s].label}
-                </span>
-              ))}
-            </span>
+      <div className="wmd-history">
+        <span className="pcard-eyebrow">Semanas</span>
+        <div className="wmd-table" role="table" aria-label="Semanas del proyecto">
+          <div className="wmd-row head" role="row">
+            <span role="columnheader">Semana</span>
+            <span role="columnheader">Cumplidos</span>
+            <span role="columnheader">QA</span>
+            <span role="columnheader">Reporte</span>
           </div>
-          {detail.weeks.length === 0 ? (
-            <div className="empty-state">Todavía no hay semanas que rastrear.</div>
-          ) : (
-            <>
-              <div className="weekly-strip">
-                {detail.weeks.map((w) => {
-                  const meta = WEEK_META[w.status];
-                  const title = `${fmtDate(w.weekStart)} — ${meta.label}` + (w.percentAvanzado !== null ? ` (${w.percentAvanzado}%)` : '');
-                  const isSelected = w.weekStart === selectedWeek;
-                  return (
-                    <button
-                      key={w.weekStart}
-                      type="button"
-                      className={`weekly-cell tone-${meta.tone}${isSelected ? ' selected' : ''}`}
-                      title={title}
-                      aria-label={title}
-                      aria-pressed={isSelected}
-                      onClick={() => setSelectedWeek(w.weekStart)}
-                    >
-                      {meta.icon}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {selectedWeekData && (
-                <div className="weekly-week-detail">
-                  <div className="weekly-week-detail-head">
-                    <span className="weekly-week-detail-date">{fmtDateLong(selectedWeekData.weekStart)}</span>
-                    <span className={`weekly-week-status tone-${WEEK_META[selectedWeekData.status].tone}`}>
-                      {WEEK_META[selectedWeekData.status].label}
-                      {selectedWeekData.percentAvanzado !== null && ` · ${selectedWeekData.percentAvanzado}%`}
-                    </span>
-                  </div>
-                  {(selectedWeekData.milestonesTotal ?? 0) > 0 && (
-                    <p className="weekly-week-detail-note">
-                      Hitos: <b>{selectedWeekData.milestonesDone} de {selectedWeekData.milestonesTotal}</b> cumplidos ·{' '}
-                      {selectedWeekData.milestonesApproved} aprobados por QA.
-                    </p>
-                  )}
-                  {(selectedWeekData.items ?? []).length > 0 && (
-                    <ul className="wd-lines">
-                      {selectedWeekData.items.map((line) => (
-                        <li key={line.code} className="wd-line">
-                          <div className="wd-line-head">
-                            <span className="wd-line-name">
-                              <span className="section-progress-code">{line.code}</span>
-                              {line.title}
-                              <span className={`wr-due${line.late ? ' late' : ''}`}>
-                                {line.late ? ` · venció ${fmtDate(line.dueDate)}` : ` · vence ${fmtDate(line.dueDate)}`}
-                              </span>
-                            </span>
-                            <span className="wd-line-badges">
-                              <span className={`pcard-badge tone-${LINE_META[line.status].tone}`}>
-                                {LINE_META[line.status].label}
-                              </span>
-                              {qaLabel(line) && (
-                                <span className={`pcard-badge ${line.qa === 'rechazado' ? 'tone-rust' : line.qa === 'aprobado' ? 'tone-green' : 'tone-slate'}`}>
-                                  {qaLabel(line)}
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                          {line.note && <span className="wd-line-note">“{line.note}”</span>}
-                          {line.qa === 'rechazado' && line.qaReason && (
-                            <span className="wd-line-note rejected">Motivo del rechazo: {line.qaReason}</span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <p className="weekly-week-detail-note">
-                    {selectedWeekData.note
-                      ? selectedWeekData.note
-                      : selectedWeekData.status === 'perdida'
-                        ? 'La persona asignada no reportó nada esta semana (se pasó el plazo del sábado 12:00 pm).'
-                        : selectedWeekData.status === 'reportado'
-                          ? 'Sin comentario general.'
-                          : 'Todavía no hay reporte para esta semana.'}
-                  </p>
-                </div>
-              )}
-            </>
-          )}
+          {visibleWeeks.map((w) => {
+            const meta = REPORT_META[w.status];
+            const hasMilestones = (w.milestonesTotal ?? 0) > 0;
+            return (
+              <button
+                type="button"
+                role="row"
+                key={w.weekStart}
+                className={`wmd-row${w.weekStart === week.weekStart ? ' selected' : ''}`}
+                aria-pressed={w.weekStart === week.weekStart}
+                onClick={() => setSelectedWeek(w.weekStart)}
+              >
+                <span role="cell">{weekRange(w.weekStart)}</span>
+                <span role="cell"><b>{hasMilestones ? `${w.milestonesDone} de ${w.milestonesTotal}` : '—'}</b></span>
+                <span role="cell">{hasMilestones ? w.milestonesApproved : '—'}</span>
+                <span role="cell" className={`wmd-report tone-${meta.tone}`}>{meta.label}</span>
+              </button>
+            );
+          })}
         </div>
-
-        <div className="dash-card">
-          <div className="dash-card-title">Hitos cumplidos por semana</div>
-          {milestoneWeeks.length === 0 ? (
-            <div className="empty-state">Todavía no hay hitos con fecha en las semanas rastreadas.</div>
-          ) : (
-            <div className="bar-chart">
-              {milestoneWeeks.map((w) => (
-                <div className="weekly-trend-row" key={w.weekStart}>
-                  <span className="weekly-trend-label">{fmtDate(w.weekStart)}</span>
-                  <span className="bar-track2">
-                    <span className="bar-fill2" style={{ width: `${Math.max(3, (w.milestonesDone / w.milestonesTotal) * 100)}%` }} />
-                  </span>
-                  <span className="weekly-trend-value">{w.milestonesDone}/{w.milestonesTotal}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {weeksDesc.length > 8 && (
+          <button type="button" className="ucard-link-btn" onClick={() => setShowAll((v) => !v)}>
+            {showAll ? 'Ver solo las últimas 8 semanas' : `Ver las ${weeksDesc.length} semanas`}
+          </button>
+        )}
+        <span className="wmd-foot">
+          "QA" = hitos cumplidos que ya aprobó QA. Un hito rechazado por QA vuelve a quedar pendiente.
+          {!detail.frozen && ` Reportes a tiempo: ${detail.weeksReported} de ${detail.weeksTracked} semanas; cada semana sin reporte resta ${detail.penaltyPerWeek} puntos.`}
+          {detail.frozen && ' Indicador congelado: el proyecto ya se cerró.'}
+        </span>
       </div>
     </div>
   );

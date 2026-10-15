@@ -104,6 +104,15 @@ export default function WeeklyProgressDashboard() {
 
   const now = Date.now();
 
+  const weekLabel = rows[0]
+    ? (() => {
+        const s = new Date(rows[0].currentWeekStart + 'T00:00:00');
+        const e = new Date(s);
+        e.setDate(e.getDate() + 5);
+        return `Semana del ${s.getDate()} al ${e.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}.`;
+      })()
+    : '';
+
   return (
     <AppShell>
       <div className="masthead">
@@ -111,22 +120,20 @@ export default function WeeklyProgressDashboard() {
           <p className="eyebrow">Jefe de proyecto · Superadmin</p>
           <h1>Informe semanal de avance</h1>
           <p className="sub">
-            Cumplimiento de reportes semanales por proyecto. El indicador baja cuando la persona
-            asignada no reporta antes del plazo (sábado 12:00 pm). Cada semana se mide contra los
-            hitos que vencen en ella: la persona reporta cuáles cumplió y QA los aprueba. Solo se
-            muestran los proyectos que no están cerrados.
+            Cada semana se mide contra los hitos que vencen en ella: la persona asignada reporta cuáles
+            cumplió y QA los aprueba. {weekLabel}
           </p>
         </div>
       </div>
 
       <div className="toolbar">
-        <div className="filters">
+        <div className="filters weekly-filters">
           <input
             type="search"
-            className="filter-search"
+            className="filter-search weekly-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por proyecto, código o responsable…"
+            placeholder="Buscar proyecto, código o responsable…"
             aria-label="Buscar proyectos"
           />
           <select
@@ -144,7 +151,7 @@ export default function WeeklyProgressDashboard() {
           </select>
           {!loading && (
             <span className="filter-note">
-              {visible.length === rows.length ? `${rows.length} proyectos abiertos` : `${visible.length} de ${rows.length} proyectos`}
+              {visible.length === rows.length ? `${rows.length} proyectos abiertos` : `${visible.length} de ${rows.length} proyectos abiertos`}
             </span>
           )}
           {(search || providerFilter) && (
@@ -167,34 +174,40 @@ export default function WeeklyProgressDashboard() {
             const isOpen = r.projectId === selected;
             const tone = indicatorTone(r.indicator);
             const toggle = () => setSelected(isOpen ? null : r.projectId);
+            const overdueProject = !r.inWindow && !!r.deadlineDate;
             return (
-              <article className="pcard" key={r.projectId} onClick={toggle}>
-                <div className="pcard-body weekly-card-body">
-                  <div className="pcard-main">
+              <article className="pcard wcard" key={r.projectId}>
+                <div className="wcard-body">
+                  <div className="wcard-main">
                     <div className="pcard-tags">
                       <span className="pcard-code">{r.code}</span>
                       <span className={`pcard-status static ${r.status}`}>
                         <span className="pcard-status-dot" aria-hidden="true" />
                         <span className="pcard-status-label">{STATUS_META[r.status]}</span>
                       </span>
+                      {overdueProject && (
+                        <span className="pcard-badge tone-rust">Plazo vencido el {fmtShortDate(r.deadlineDate!)}</span>
+                      )}
                     </div>
                     <h2 className="pcard-title">
-                      <Link to={`/projects/${r.projectId}`} onClick={(e) => e.stopPropagation()}>{r.name}</Link>
+                      <Link to={`/projects/${r.projectId}`}>{r.name}</Link>
                     </h2>
-                    <div className="pcard-people">
-                      <PersonChip role="Responsable del reporte" name={r.responsableNombre} />
-                    </div>
+                    <PersonChip role="Responsable del reporte" name={r.responsableNombre} />
+                    <button type="button" className="pcard-toggle" aria-expanded={isOpen} onClick={toggle}>
+                      {isOpen ? 'Ocultar detalle de hitos' : 'Ver detalle de hitos'}
+                      <svg className={`pcard-chevron${isOpen ? ' open' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                    </button>
                   </div>
 
-                  <div className="pcard-progress weekly-metrics" onClick={(e) => e.stopPropagation()}>
-                    <div className="weekly-metric">
+                  <div className="wcard-metrics">
+                    <div className="wcard-metric">
                       <span className="pcard-eyebrow">Hitos de la semana</span>
                       {r.weekMilestonesTotal > 0 ? (
                         <>
-                          <div className="pcard-progress-figures">
+                          <span className="wcard-figure">
                             <span className="pcard-pct">{r.weekMilestonesDone}/{r.weekMilestonesTotal}</span>
                             <span className="pcard-pct-caption">cumplidos</span>
-                          </div>
+                          </span>
                           <span className="pcard-section-bar"><span style={{ width: `${Math.round((r.weekMilestonesDone / r.weekMilestonesTotal) * 100)}%` }} /></span>
                         </>
                       ) : r.nextDueDate ? (
@@ -203,7 +216,10 @@ export default function WeeklyProgressDashboard() {
                         </span>
                       ) : r.undatedCount > 0 ? (
                         <>
-                          <span className="pcard-badge tone-gold">{r.undatedCount} hitos sin fecha</span>
+                          <span className="pcard-badge tone-gold">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M3 10h18" /><path d="M8 2v4" /><path d="M16 2v4" /></svg>
+                            {r.undatedCount} hitos sin fecha
+                          </span>
                           <span className="weekly-metric-text">Sin fechas no hay contra qué medir la semana.</span>
                           <Link className="weekly-metric-link" to={`/projects/${r.projectId}`}>Asignar fechas a los hitos →</Link>
                         </>
@@ -216,38 +232,20 @@ export default function WeeklyProgressDashboard() {
                         </span>
                       )}
                     </div>
-                    <div className="weekly-metric">
+                    <div className="wcard-metric">
                       <span className="pcard-eyebrow">Reportes a tiempo</span>
-                      <div className="pcard-progress-figures">
-                        <span className="pcard-pct">{r.indicator}%</span>
-                      </div>
-                      <div className="pcard-bar" aria-hidden="true">
+                      <span className="wcard-figure"><span className="pcard-pct">{r.indicator}%</span></span>
+                      <span className="pcard-bar" aria-hidden="true">
                         <span className="pcard-bar-track" />
                         <span className={`pcard-bar-fill weekly-fill tone-${tone}`} style={{ width: `${Math.min(100, r.indicator)}%` }} />
-                      </div>
+                      </span>
                       <WeekBadge state={weekState(r, now)} />
                     </div>
-                    <button
-                      type="button"
-                      className="pcard-toggle weekly-metrics-toggle"
-                      aria-expanded={isOpen}
-                      onClick={toggle}
-                    >
-                      {isOpen ? 'Ocultar detalle de hitos y semanas' : 'Ver detalle de hitos y semanas'}
-                      <svg className={`pcard-chevron${isOpen ? ' open' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-                    </button>
                   </div>
                 </div>
 
                 {isOpen && (
-                  <div className="pcard-breakdown" onClick={(e) => e.stopPropagation()}>
-                    <div className="weekly-card-detail-head">
-                      <span className="pcard-eyebrow">Hitos y semanas</span>
-                      <Link className="pcard-btn" to={`/projects/${r.projectId}`}>
-                        Ver proyecto
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>
-                      </Link>
-                    </div>
+                  <div className="pcard-breakdown">
                     <WeeklyProgressDetail projectId={r.projectId} />
                   </div>
                 )}

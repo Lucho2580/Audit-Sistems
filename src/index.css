@@ -232,8 +232,6 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .pcard-bar-fill.weekly-fill.tone-green{background:var(--green);}
 .pcard-bar-fill.weekly-fill.tone-gold{background:#B7811A;}
 .pcard-bar-fill.weekly-fill.tone-rust{background:var(--danger);}
-.weekly-card-body{grid-template-columns:minmax(0,1fr) 540px;}
-.weekly-card-detail-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
 a.pcard-btn{text-decoration:none;}
 /* Tarjetas de cuenta (Usuarios) */
 .ucard-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;margin-top:18px;}
@@ -309,29 +307,70 @@ a.pcard-btn{text-decoration:none;}
 .wr-sent{display:flex;flex-direction:column;align-items:flex-start;gap:10px;}
 .wr-modal-card{max-width:860px;width:calc(100vw - 32px);}
 /* Detalle semana a semana: líneas de hitos */
-.wd-lines{list-style:none;margin:8px 0;padding:0;display:flex;flex-direction:column;gap:8px;}
-.wd-line{background:var(--card);border:1px solid var(--hairline);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:5px;}
-.wd-line-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
-.wd-line-name{font-size:13px;font-weight:500;color:var(--ink);min-width:0;}
-.wd-line-badges{display:inline-flex;gap:6px;flex-wrap:wrap;}
-.wd-line-note{font-size:12.5px;color:var(--ink-soft);}
-.wd-line-note.rejected{color:var(--danger);}
 /* Informe semanal: dos indicadores por proyecto */
-.weekly-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 24px;}
-.weekly-metric{display:flex;flex-direction:column;gap:9px;min-width:0;}
-.weekly-metric .pcard-badge{align-self:flex-start;}
 .weekly-metric-text{font-size:13px;line-height:1.5;color:var(--ink-soft);}
 .weekly-metric-link{font-size:13px;font-weight:500;color:var(--brand-strong);text-decoration:none;}
 .weekly-metric-link:hover{text-decoration:underline;}
 .weekly-metric-late{font-size:12.5px;font-weight:600;color:var(--danger);}
-.weekly-metrics-toggle{grid-column:1/-1;}
 @media (max-width:900px){
   .wr-layout{grid-template-columns:1fr;}
 }
 @media (max-width:560px){
-  .weekly-metrics{grid-template-columns:1fr;}
   .wr-seg{width:100%;}
   .wr-seg-btn{flex:1;padding:0 6px;}
+}
+.weekly-search{min-width:300px;}
+/* Informe semanal: tarjeta por proyecto (diseño "Reporte semanal por hitos") */
+.wcard{cursor:default;}
+.wcard:hover{box-shadow:0 1px 2px rgba(28,31,35,.04);border-color:var(--hairline);}
+.wcard-body{display:grid;grid-template-columns:minmax(0,1fr) 540px;gap:36px;padding:24px 30px;align-items:start;}
+.wcard-main{display:flex;flex-direction:column;gap:12px;min-width:0;}
+.wcard-main .pcard-toggle{padding:4px 0;}
+.wcard-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-left:1px solid var(--hairline);}
+.wcard-metric{display:flex;flex-direction:column;gap:9px;min-width:0;padding:0 22px 0 28px;}
+.wcard-metric+.wcard-metric{padding:0 0 0 22px;border-left:1px solid #EDEBE8;}
+.wcard-metric .pcard-badge{align-self:flex-start;}
+.wcard-figure{display:flex;align-items:baseline;gap:6px;}
+.wcard-figure .pcard-pct{font-size:36px;}
+.weekly-metric-text{font-size:13px;line-height:1.5;color:var(--ink-soft);}
+.weekly-metric-link{font-size:13px;font-weight:500;color:var(--brand-strong);text-decoration:none;}
+.weekly-metric-link:hover{text-decoration:underline;}
+.weekly-metric-late{font-size:12.5px;font-weight:600;color:var(--danger);}
+/* Detalle de hitos y semanas */
+.wmd{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:28px;align-items:start;}
+.wmd-week,.wmd-history{display:flex;flex-direction:column;gap:10px;min-width:0;}
+.wmd-week-sum{font-size:13px;color:var(--ink-soft);}
+.wmd-lines{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;}
+.wmd-line{background:var(--card);border:1px solid var(--hairline);border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;}
+.wmd-line-head{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.wmd-line-name{display:inline-flex;align-items:center;min-width:0;}
+.wmd-line-title{font-size:13.5px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.wmd-line-note{font-size:12.5px;line-height:1.5;color:var(--ink-soft);}
+.wmd-line-note.rejected{color:var(--danger);}
+.wmd-empty{margin:0;font-size:13px;color:var(--ink-soft);background:var(--card);border:1px dashed var(--hairline-strong);border-radius:6px;padding:12px 14px;}
+.wmd-general{margin:0;font-size:13px;line-height:1.5;color:var(--ink-soft);}
+.wmd-general b{color:var(--ink);font-weight:600;}
+.wmd-table{background:var(--card);border:1px solid var(--hairline);border-radius:6px;overflow:hidden;}
+.wmd-row{display:grid;grid-template-columns:1.25fr .9fr .6fr 1fr;gap:8px;width:100%;padding:10px 14px;border:0;border-top:1px solid #EDEBE8;background:transparent;font-family:inherit;font-size:13px;color:var(--ink);text-align:left;align-items:center;cursor:pointer;}
+.wmd-row:hover{background:var(--paper);}
+.wmd-row.selected{background:var(--brand-bg);}
+.wmd-row:focus-visible{outline:none;box-shadow:inset var(--focus);}
+.wmd-row.head{border-top:0;background:var(--paper);cursor:default;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--slate);}
+.wmd-report{font-weight:600;}
+.wmd-report.tone-green{color:#22573A;} .wmd-report.tone-rust{color:var(--danger);} .wmd-report.tone-slate{color:var(--slate);}
+.wmd-foot{font-size:12px;line-height:1.5;color:var(--slate);}
+.ucard-link-btn{align-self:flex-start;background:none;border:none;padding:4px 0;font-family:inherit;font-size:13px;font-weight:500;color:var(--brand-strong);cursor:pointer;}
+@media (max-width:1100px){
+  .wcard-body{grid-template-columns:1fr;gap:20px;}
+  .wcard-metrics{border-left:0;border-top:1px solid var(--hairline);padding-top:16px;}
+  .wcard-metric{padding:0 22px 0 0;}
+  .wmd{grid-template-columns:1fr;}
+}
+@media (max-width:560px){
+  .wcard-body{padding:20px;}
+  .wcard-metrics{grid-template-columns:1fr;gap:16px;}
+  .wcard-metric+.wcard-metric{padding:16px 0 0;border-left:0;border-top:1px solid #EDEBE8;}
+  .weekly-search{min-width:0;width:100%;}
 }
 .pcard-breakdown{border-top:1px solid var(--hairline);background:#FAFAF8;padding:18px 30px 22px;display:flex;flex-direction:column;gap:12px;cursor:default;border-radius:0 0 var(--radius-md) var(--radius-md);}
 .pcard-sections{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
@@ -345,7 +384,6 @@ a.pcard-btn{text-decoration:none;}
 .pcard-section-count{font-size:12px;color:var(--slate);}
 @media (max-width:1100px){
   .pcard-body{grid-template-columns:minmax(0,1fr) 300px;gap:28px;}
-  .weekly-card-body{grid-template-columns:minmax(0,1fr) 440px;}
   .pcard-actions{grid-column:1/-1;justify-content:flex-end;}
 }
 @media (max-width:760px){
