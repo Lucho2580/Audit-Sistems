@@ -5,7 +5,7 @@ import DirectorySearch from '../components/DirectorySearch';
 import ProvidersPanel from '../components/ProvidersPanel';
 import { useSidebarStats } from '../context/ShellChromeContext';
 import { UsersAdminApi, type DirectoryUser } from '../lib/services';
-import { ACTOR_ROLE_LABEL, type ProfileLite } from '../types/domain';
+import { ACTOR_ROLE_LABEL, type ProfileLite, type PendingInvite } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
 
 type ManagedRole = 'desarrollador' | 'admin' | 'qa';
@@ -37,17 +37,24 @@ const ROLE_META: Record<ManagedRole, { code: string; title: string; hint: string
 function UserRoleSection({ role, onStats }: { role: ManagedRole; onStats?: (s: { count: number; confirmed: number }) => void }) {
   const meta = ROLE_META[role];
   const [users, setUsers] = useState<ProfileLite[]>([]);
+  const [invites, setInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ fullName: '', email: '' });
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyEmail, setBusyEmail] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
     try {
-      setUsers(await UsersAdminApi.list(role));
+      const [confirmed, pending] = await Promise.all([
+        UsersAdminApi.list(role),
+        UsersAdminApi.listPendingInvites(),
+      ]);
+      setUsers(confirmed);
+      setInvites(pending.filter((i) => i.role === role));
     } finally {
       setLoading(false);
     }
@@ -59,7 +66,7 @@ function UserRoleSection({ role, onStats }: { role: ManagedRole; onStats?: (s: {
   }, []);
 
   useEffect(() => {
-    onStats?.({ count: users.length, confirmed: users.filter((u) => !u.mustChangePassword).length });
+    onStats?.({ count: users.length, confirmed: users.length });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users]);
 
@@ -72,25 +79,20 @@ function UserRoleSection({ role, onStats }: { role: ManagedRole; onStats?: (s: {
     }
     setCreating(true);
     try {
-      const created = await UsersAdminApi.create({ fullName, email, role });
-      if (created.emailSent) {
-        alert(`Cuenta creada para ${fullName}. Se le mandó un correo a ${created.email} con la contraseña temporal.`);
+      const invited = await UsersAdminApi.create({ fullName, email, role });
+      if (invited.emailSent) {
+        alert(`Se invitó a ${fullName}. Se le mandó un correo a ${invited.email} para que entre con su cuenta de Microsoft.`);
       } else {
-        let msg =
-          `Cuenta creada para ${fullName}.\n\n` +
-          `Correo: ${created.email}\nContraseña temporal: ${created.tempPassword}\n\n` +
-          'Cópiala y pásasela por un canal seguro — no se puede volver a ver. ' +
-          'Se le pedirá cambiarla al iniciar sesión por primera vez.';
-        if (created.emailError) {
-          msg += `\n\n(No se pudo enviar el correo automático: ${created.emailError})`;
-        }
+        let msg = `Se invitó a ${fullName} (${invited.email}), pero no se pudo enviar el correo automático.`;
+        if (invited.emailError) msg += `\n\n(${invited.emailError})`;
+        msg += '\n\nAvísale por otro medio que ya puede entrar con su cuenta de Microsoft.';
         alert(msg);
       }
       setForm({ fullName: '', email: '' });
       setShowForm(false);
       load();
     } catch (err) {
-      alert(`No se pudo crear la cuenta: ${(err as Error).message}`);
+      alert(`No se pudo invitar la cuenta: ${(err as Error).message}`);
     } finally {
       setCreating(false);
     }
@@ -110,25 +112,29 @@ function UserRoleSection({ role, onStats }: { role: ManagedRole; onStats?: (s: {
     }
   }
 
-  async function resetPassword(p: ProfileLite) {
-    if (!confirm(`¿Generar una contraseña temporal nueva para ${p.fullName ?? p.email}?`)) return;
-    setBusyId(p.id);
+  async function resendInvite(invite: PendingInvite) {
+    setBusyEmail(invite.email);
     try {
-      const { tempPassword, emailSent, emailError } = await UsersAdminApi.resetPassword(p.id);
-      if (emailSent) {
-        alert(`Se generó una contraseña temporal nueva y se le mandó un correo a ${p.email}.`);
-      } else {
-        let msg = `Nueva contraseña temporal para ${p.email}:\n\n${tempPassword}\n\nSe le pedirá cambiarla al iniciar sesión.`;
-        if (emailError) {
-          msg += `\n\n(No se pudo enviar el correo automático: ${emailError})`;
-        }
-        alert(msg);
-      }
+      const { emailSent, emailError } = await UsersAdminApi.resendInvite(invite.email);
+      if (emailSent) alert(`Se reenvió la invitación a ${invite.email}.`);
+      else alert(`No se pudo reenviar el correo automático a ${invite.email}.${emailError ? `\n\n(${emailError})` : ''}`);
+    } catch (err) {
+      alert(`No se pudo reenviar la invitación: ${(err as Error).message}`);
+    } finally {
+      setBusyEmail(null);
+    }
+  }
+
+  async function cancelInvite(invite: PendingInvite) {
+    if (!confirm(`¿Cancelar la invitación de "${invite.fullName}" (${invite.email})?`)) return;
+    setBusyEmail(invite.email);
+    try {
+      await UsersAdminApi.cancelInvite(invite.email);
       load();
     } catch (err) {
-      alert(`No se pudo restablecer la contraseña: ${(err as Error).message}`);
+      alert(`No se pudo cancelar la invitación: ${(err as Error).message}`);
     } finally {
-      setBusyId(null);
+      setBusyEmail(null);
     }
   }
 
@@ -196,16 +202,16 @@ function UserRoleSection({ role, onStats }: { role: ManagedRole; onStats?: (s: {
                 </div>
                 <div className="stat-item">
                   <div className="stat-label">Estado inicial</div>
-                  <div className="stat-value accent">Por confirmar</div>
+                  <div className="stat-value accent">Invitación pendiente</div>
                 </div>
               </div>
             </div>
             <div className="modal-foot">
-              <span className="modal-foot-hint">Se envía un correo para definir la contraseña.</span>
+              <span className="modal-foot-hint">Se envía un correo para que entre con su cuenta de Microsoft.</span>
               <div className="modal-foot-actions">
                 <button className="btn ghost" onClick={() => setShowForm(false)}>Cancelar</button>
                 <button className="btn" onClick={createUser} disabled={creating || !form.fullName || !form.email}>
-                  {creating ? 'Creando…' : 'Crear cuenta'}
+                  {creating ? 'Invitando…' : 'Invitar'}
                 </button>
               </div>
             </div>
@@ -215,10 +221,33 @@ function UserRoleSection({ role, onStats }: { role: ManagedRole; onStats?: (s: {
 
       {loading ? (
         <div className="empty-state">Cargando…</div>
-      ) : users.length === 0 ? (
+      ) : users.length === 0 && invites.length === 0 ? (
         <div className="empty-state">No hay cuentas registradas todavía.</div>
       ) : (
         <div>
+          {invites.map((invite) => (
+            <div className="account-row" key={invite.email}>
+              <div className="account-main">
+                <div className="account-code">{meta.code}-INV</div>
+                <div className="account-name-input" style={{ display: 'flex', alignItems: 'center' }}>{invite.fullName}</div>
+                <div className="account-email">{invite.email}</div>
+              </div>
+              <div className="account-side">
+                <span className="status-badge pending">Invitación pendiente</span>
+                <button className="hist-btn" onClick={() => resendInvite(invite)} disabled={busyEmail === invite.email}>
+                  Reenviar
+                </button>
+                <button
+                  className="del-btn"
+                  title="Cancelar invitación"
+                  onClick={() => cancelInvite(invite)}
+                  disabled={busyEmail === invite.email}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          ))}
           {users.map((u, idx) => (
             <div className="account-row" key={u.id}>
               <div className="account-main">
@@ -235,12 +264,7 @@ function UserRoleSection({ role, onStats }: { role: ManagedRole; onStats?: (s: {
                 <div className="account-email">{u.email}</div>
               </div>
               <div className="account-side">
-                <span className={`status-badge ${u.mustChangePassword ? 'pending' : 'confirmed'}`}>
-                  {u.mustChangePassword ? 'Pendiente por confirmar' : 'Confirmado'}
-                </span>
-                <button className="hist-btn" onClick={() => resetPassword(u)} disabled={busyId === u.id}>
-                  Restablecer contraseña
-                </button>
+                <span className="status-badge confirmed">Confirmado</span>
                 <button
                   className="del-btn"
                   title="Eliminar cuenta"

@@ -328,6 +328,12 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .status-pill.tone-green{background:var(--green-bg);color:var(--green);border-color:var(--green);}
 .status-pill.tone-gold{background:var(--gold-bg);color:var(--gold);border-color:var(--gold);}
 .status-pill.tone-rust{background:var(--danger-bg);color:var(--danger);border-color:var(--danger);}
+.log-reject-reason{flex-basis:100%;font-size:12px;color:var(--danger);background:var(--danger-bg);border-left:2px solid var(--danger);padding:6px 10px;}
+.log-reject-reason strong{font-weight:600;}
+.log-reject-form{flex-basis:100%;display:flex;flex-direction:column;gap:6px;}
+.log-reject-form textarea{min-height:56px;font-size:12.5px;border:1px solid var(--danger);padding:6px 8px;background:var(--card);resize:vertical;color:var(--ink);font-family:inherit;}
+.log-reject-form textarea:focus{outline:none;box-shadow:var(--focus);}
+.log-reject-form-actions{display:flex;gap:6px;}
 .note-form{display:flex;gap:8px;margin-top:10px;align-items:flex-start;}
 .note-form textarea{flex:1;min-height:40px;font-size:12.5px;border:1px solid var(--hairline);padding:6px 8px;background:var(--card);resize:vertical;color:var(--ink);}
 
@@ -536,11 +542,28 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 .login-form-rule{height:2px;background:var(--ink);}
 .login-form .sub{margin:-8px 0 0;color:var(--ink-soft);font-size:13px;}
 .login-form form{display:flex;flex-direction:column;gap:2px;}
+.login-card{width:100%;max-width:460px;background:var(--card);border:1px solid var(--hairline);border-top:4px solid var(--brand);box-shadow:0 18px 40px -24px rgba(28,31,35,.28);}
+.login-card-body{padding:44px 44px 36px;display:flex;flex-direction:column;}
+.login-card-body .eyebrow{margin:0 0 12px;}
+.login-card h2{font-family:'Fraunces',serif;font-weight:600;font-size:38px;line-height:1.05;letter-spacing:-.02em;margin:0;color:var(--ink);}
+.login-lead{margin:16px 0 28px;font-size:15.5px;line-height:1.55;color:var(--ink-soft);max-width:36ch;}
+.login-card .auth-error{margin:0 0 18px;}
+.btn-sso{display:flex;align-items:center;justify-content:center;gap:14px;width:100%;min-height:54px;font-size:13px;letter-spacing:.06em;}
+.btn-sso:focus-visible{outline:none;box-shadow:var(--focus);}
+.btn-sso .ms-logo{flex-shrink:0;background:#fff;padding:4px;border-radius:var(--radius-sm);box-sizing:content-box;}
+.login-steps{list-style:none;margin:28px 0 0;padding:22px 0 0;border-top:1px solid var(--hairline);display:flex;flex-direction:column;gap:14px;}
+.login-steps li{display:flex;gap:12px;align-items:flex-start;font-size:13.5px;line-height:1.5;color:var(--ink-soft);}
+.login-steps strong{color:var(--ink);font-weight:600;}
+.login-step-num{flex-shrink:0;width:22px;height:22px;border-radius:var(--radius-pill);background:var(--brand-bg);color:var(--brand-strong);font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+.login-card-foot{padding:16px 44px;background:var(--paper);border-top:1px solid var(--hairline);font-size:12.5px;color:var(--slate);}
 @media (max-width:760px){
   .login-page{grid-template-columns:1fr;}
   .login-brand{padding:32px 24px;gap:28px;}
   .login-title{font-size:32px;}
-  .login-form-panel{padding:32px 24px;}
+  .login-form-panel{padding:32px 16px;}
+  .login-card-body{padding:32px 24px 28px;}
+  .login-card-foot{padding:14px 24px;}
+  .login-card h2{font-size:30px;}
 }
 
 footer{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--slate);letter-spacing:.05em;margin-top:36px;}

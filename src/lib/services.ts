@@ -5,7 +5,7 @@ import type {
   Project, Meeting, AuditLogEntry, ProjectStatus, MeetingState,
   Provider, ProjectPhase, DailyNote, ProfileLite, UserRole, Compromiso,
   WeeklyProgressEntry, WeeklyProgressOverviewRow, WeeklyProgressDetail,
-  PhaseTask,
+  PhaseTask, PendingInvite,
 } from '../types/domain';
 
 const PROJECT_SELECT = `
@@ -26,7 +26,9 @@ const PROJECT_SELECT = `
       log:item_logs (
         id, text, authorEmail:author_email, createdAt:created_at,
         qaApproved:qa_approved, qaApprovedAt:qa_approved_at,
-        qaApprovedByNombre:profiles(fullName:full_name)
+        qaApprovedByNombre:profiles!item_logs_qa_approved_by_fkey(fullName:full_name),
+        qaRejectedAt:qa_rejected_at, qaRejectionReason:qa_rejection_reason,
+        qaRejectedByNombre:profiles!item_logs_qa_rejected_by_fkey(fullName:full_name)
       )
     )
   )
@@ -52,7 +54,11 @@ function normalizeProject(project: Project): Project {
         .map((it) => ({
           ...it,
           assignedToNombre: (it.assignedToNombre as any)?.fullName ?? null,
-          log: (it.log ?? []).map((l) => ({ ...l, qaApprovedByNombre: (l.qaApprovedByNombre as any)?.fullName ?? null })),
+          log: (it.log ?? []).map((l) => ({
+            ...l,
+            qaApprovedByNombre: (l.qaApprovedByNombre as any)?.fullName ?? null,
+            qaRejectedByNombre: (l.qaRejectedByNombre as any)?.fullName ?? null,
+          })),
         })),
     }));
   const phases = [...(project.phases ?? [])].sort((a, b) => a.orderIndex - b.orderIndex);
@@ -216,6 +222,19 @@ export const ProjectsApi = {
 
   async approveItemLog(logId: string) {
     const res = await supabase.rpc('approve_item_log', { p_log_id: logId });
+    throwIfError(res as any);
+  },
+
+  // Rol QA o cuenta en item_log_reviewers (p. ej. soporte.ti) -- la misma
+  // regla que aplican approve_item_log/reject_item_log en la base.
+  async canReviewItemLogs(): Promise<boolean> {
+    const res = await supabase.rpc('can_review_item_logs');
+    return throwIfError<boolean>(res as any) === true;
+  },
+
+  // Solo quien puede revisar (lo valida la función en la base); el motivo es obligatorio.
+  async rejectItemLog(logId: string, reason: string) {
+    const res = await supabase.rpc('reject_item_log', { p_log_id: logId, p_reason: reason });
     throwIfError(res as any);
   },
 
@@ -540,32 +559,52 @@ export const ProfilesApi = {
   },
 };
 
-export interface AdminCreatedUser {
-  id: string;
+export interface InviteSentResult {
   email: string;
-  tempPassword: string;
+  invited: boolean;
   emailSent: boolean;
   emailError?: string;
 }
 
-// Crea/edita/borra cuentas de "Persona asignada" (desarrollador) y, si quien
-// llama es superadmin, también cuentas admin ("Jefe de proyecto") -- sin
-// pasar por el signUp público (que exige confirmar por correo). Llama a la
-// Edge Function admin-manage-user, que usa la Admin API de Supabase Auth con
-// la service_role key -- por eso no se puede hacer desde aquí directo con el
-// cliente normal. Esa función debe validar aparte que solo superadmin puede
-// crear role:'admin'.
+// Invita/edita/borra cuentas de "Persona asignada" (desarrollador) y, si
+// quien llama es superadmin, también cuentas admin ("Jefe de proyecto") y QA.
+// Login es por SSO de Microsoft -- "crear" ya no genera ninguna contraseña,
+// solo registra una invitación pendiente (ver admin-manage-user); la cuenta
+// real de Auth y el perfil se crean solos la primera vez que esa persona
+// entra con Microsoft.
 export const UsersAdminApi = {
   async list(role: 'admin' | 'desarrollador' | 'cliente' | 'qa'): Promise<ProfileLite[]> {
     return ProfilesApi.searchByRole(role, '', 200);
   },
 
-  async create(payload: { email: string; fullName: string; role: 'admin' | 'desarrollador' | 'cliente' | 'qa' }): Promise<AdminCreatedUser> {
-    const { data, error } = await supabase.functions.invoke<AdminCreatedUser>('admin-manage-user', {
+  async listPendingInvites(): Promise<PendingInvite[]> {
+    const res = await supabase.rpc('list_pending_invites');
+    const rows = throwIfError<{ email: string; full_name: string; role: UserRole; created_at: string }[]>(res as any);
+    return rows.map((r) => ({ email: r.email, fullName: r.full_name, role: r.role, createdAt: r.created_at }));
+  },
+
+  async create(payload: { email: string; fullName: string; role: 'admin' | 'desarrollador' | 'cliente' | 'qa' }): Promise<InviteSentResult> {
+    const { data, error } = await supabase.functions.invoke<InviteSentResult>('admin-manage-user', {
       body: { action: 'create', email: payload.email, fullName: payload.fullName, role: payload.role },
     });
     if (error) await throwFunctionError(error);
-    return data as AdminCreatedUser;
+    return data as InviteSentResult;
+  },
+
+  async resendInvite(email: string): Promise<{ emailSent: boolean; emailError?: string }> {
+    const { data, error } = await supabase.functions.invoke<{ emailSent: boolean; emailError?: string }>(
+      'admin-manage-user',
+      { body: { action: 'resend_invite', email } },
+    );
+    if (error) await throwFunctionError(error);
+    return data as { emailSent: boolean; emailError?: string };
+  },
+
+  async cancelInvite(email: string): Promise<void> {
+    const { error } = await supabase.functions.invoke('admin-manage-user', {
+      body: { action: 'cancel_invite', email },
+    });
+    if (error) await throwFunctionError(error);
   },
 
   async update(id: string, payload: { fullName: string }): Promise<void> {
@@ -580,15 +619,6 @@ export const UsersAdminApi = {
       body: { action: 'delete', id },
     });
     if (error) await throwFunctionError(error);
-  },
-
-  async resetPassword(id: string): Promise<{ tempPassword: string; emailSent: boolean; emailError?: string }> {
-    const { data, error } = await supabase.functions.invoke<{ tempPassword: string; emailSent: boolean; emailError?: string }>(
-      'admin-manage-user',
-      { body: { action: 'reset_password', id } },
-    );
-    if (error) await throwFunctionError(error);
-    return data as { tempPassword: string; emailSent: boolean; emailError?: string };
   },
 };
 

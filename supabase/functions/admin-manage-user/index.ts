@@ -1,9 +1,15 @@
-// Crea/edita/elimina cuentas de "Persona asignada" (desarrollador) y
-// "Proveedor" (cliente) directamente desde la UI de administración, sin pasar
-// por el flujo público de signUp (que exige correo de confirmación y choca con
-// el límite de envío de Supabase). Usa la Admin API de Supabase Auth, que
-// necesita la service_role key -- por eso esto vive en una Edge Function y
-// nunca en el cliente.
+// Invita/edita/elimina cuentas de "Persona asignada" (desarrollador),
+// "Jefe de proyecto" (admin), "Cliente" y "QA" -- vía SSO de Microsoft Entra
+// ID, no correo+contraseña. Un admin ya no crea la cuenta de Auth
+// directamente: registra una invitación pendiente (tabla pending_invites);
+// la fila real de auth.users la crea Supabase Auth la primera vez que esa
+// persona entra con su cuenta de Microsoft, y dos triggers de base de datos
+// (ver migración 2026101401_entra_sso_invites.sql) aprovisionan el
+// `profiles` correspondiente en ese momento. Por eso "crear" aquí no toca la
+// Admin API de Auth en absoluto -- solo necesita la service_role key para
+// poder insertar en pending_invites sin pasar por RLS (que no da permiso de
+// escritura a authenticated/anon a propósito) y para poder borrar cuentas ya
+// confirmadas.
 //
 // SUPABASE_URL, SUPABASE_ANON_KEY y SUPABASE_SERVICE_ROLE_KEY los inyecta
 // Supabase automáticamente en cada Edge Function; no hace falta configurarlos
@@ -12,7 +18,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { sendMail } from '../_shared/graph.ts';
 
-// URL pública de la app, para el link de login en el correo de bienvenida.
+// URL pública de la app, para el link de login en el correo de invitación.
 // Reusa el secret SITE_URL que ya existe en el proyecto (mismo que usan las
 // demás funciones para armar links).
 const APP_URL = Deno.env.get('SITE_URL') ?? 'https://laviandaauditsistems.netlify.app';
@@ -30,36 +36,22 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function randomTempPassword(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!$%*';
-  const bytes = crypto.getRandomValues(new Uint8Array(14));
-  return Array.from(bytes, (b) => chars[b % chars.length]).join('');
-}
-
-// El correo con la contraseña temporal se manda para toda cuenta que entra a
-// la app -- ahora incluye a "Cliente" (portal de firma de actas), además de
-// "Persona asignada"/desarrollador y "Jefe de proyecto"/admin.
-async function maybeSendWelcomeEmail(params: {
-  role: string;
+// El correo de invitación se manda para toda cuenta nueva -- "Cliente"
+// (portal de firma de actas), "Persona asignada"/desarrollador, "Jefe de
+// proyecto"/admin y QA.
+async function sendInviteEmail(params: {
   email: string;
   fullName: string;
-  tempPassword: string;
-  isReset: boolean;
+  isResend: boolean;
 }): Promise<{ emailSent: boolean; emailError?: string }> {
-  if (!['desarrollador', 'admin', 'cliente', 'qa'].includes(params.role)) return { emailSent: false };
-
-  const subject = params.isReset
-    ? 'Tu contraseña fue restablecida — Sistema de Auditoría'
-    : 'Tu cuenta en el Sistema de Auditoría';
-  const intro = params.isReset
-    ? 'Se restableció la contraseña de tu cuenta.'
-    : 'Se creó una cuenta para ti en el Sistema de Auditoría.';
+  const subject = params.isResend
+    ? 'Recordatorio: tu acceso al Sistema de Auditoría'
+    : 'Tu acceso al Sistema de Auditoría';
   const html = `
     <p>Hola ${params.fullName},</p>
-    <p>${intro}</p>
-    <p><strong>Correo:</strong> ${params.email}<br/>
-       <strong>Contraseña temporal:</strong> ${params.tempPassword}</p>
-    <p>Al iniciar sesión se te pedirá cambiarla por una nueva.</p>
+    <p>Se te dio acceso al Sistema de Auditoría de La Vianda.</p>
+    <p>Entra con tu cuenta de Microsoft (<strong>${params.email}</strong>) -- no necesitas
+       crear ni recordar ninguna contraseña nueva.</p>
     <p><a href="${APP_URL}/login">Ir al sistema</a></p>
   `;
 
@@ -105,40 +97,61 @@ Deno.serve(async (req) => {
     const { action } = body ?? {};
 
     if (action === 'create') {
-      const { email, fullName, role } = body;
+      const { fullName, role } = body;
+      const email = (body.email as string | undefined)?.trim().toLowerCase();
       const allowedRoles = isSuperadmin ? ['cliente', 'desarrollador', 'admin', 'qa'] : ['cliente', 'desarrollador'];
       if (!email || !fullName || !allowedRoles.includes(role)) {
         const rolesMsg = isSuperadmin ? 'cliente, desarrollador, admin o qa' : 'cliente o desarrollador';
         return json({ error: `Faltan datos o el rol no es válido (solo ${rolesMsg}).` }, 400);
       }
-      const tempPassword = randomTempPassword();
-      const { data: created, error: createErr } = await admin.auth.admin.createUser({
-        email,
-        password: tempPassword,
-        email_confirm: true,
-        user_metadata: { full_name: fullName },
-      });
-      if (createErr || !created?.user) {
-        return json({ error: createErr?.message ?? 'No se pudo crear el usuario.' }, 400);
+
+      const { data: existingProfile } = await admin
+        .from('profiles')
+        .select('id')
+        .ilike('email', email)
+        .maybeSingle();
+      if (existingProfile) {
+        return json({ error: 'Ya existe una cuenta confirmada con ese correo.' }, 400);
       }
-      const { error: profileErr } = await admin.from('profiles').upsert({
-        id: created.user.id,
+
+      // Upsert: invitar dos veces al mismo correo actualiza nombre/rol en vez
+      // de fallar -- así "editar una invitación pendiente" es la misma
+      // acción que "crear".
+      const { error: inviteErr } = await admin.from('pending_invites').upsert({
         email,
         full_name: fullName,
         role,
-        must_change_password: true,
+        invited_by: userData.user.id,
       });
-      if (profileErr) {
-        // El usuario de auth ya se creó; si el perfil falla, se revierte para
-        // no dejar una cuenta de auth huérfana sin fila en profiles.
-        await admin.auth.admin.deleteUser(created.user.id);
-        return json({ error: profileErr.message }, 400);
-      }
+      if (inviteErr) return json({ error: inviteErr.message }, 400);
 
-      const { emailSent, emailError } = await maybeSendWelcomeEmail({
-        role, email, fullName, tempPassword, isReset: false,
+      const { emailSent, emailError } = await sendInviteEmail({ email, fullName, isResend: false });
+      return json({ email, invited: true, emailSent, emailError });
+    }
+
+    if (action === 'resend_invite') {
+      const email = (body.email as string | undefined)?.trim().toLowerCase();
+      if (!email) return json({ error: 'Falta el correo.' }, 400);
+
+      const { data: invite } = await admin
+        .from('pending_invites')
+        .select('email, full_name')
+        .eq('email', email)
+        .maybeSingle();
+      if (!invite) return json({ error: 'Esa invitación ya no está pendiente.' }, 404);
+
+      const { emailSent, emailError } = await sendInviteEmail({
+        email: invite.email, fullName: invite.full_name, isResend: true,
       });
-      return json({ id: created.user.id, email, tempPassword, emailSent, emailError });
+      return json({ emailSent, emailError });
+    }
+
+    if (action === 'cancel_invite') {
+      const email = (body.email as string | undefined)?.trim().toLowerCase();
+      if (!email) return json({ error: 'Falta el correo.' }, 400);
+      const { error } = await admin.from('pending_invites').delete().eq('email', email);
+      if (error) return json({ error: error.message }, 400);
+      return json({ ok: true });
     }
 
     if (action === 'update') {
@@ -155,32 +168,6 @@ Deno.serve(async (req) => {
       const { error } = await admin.auth.admin.deleteUser(id);
       if (error) return json({ error: error.message }, 400);
       return json({ ok: true });
-    }
-
-    if (action === 'reset_password') {
-      const { id } = body;
-      if (!id) return json({ error: 'Falta el id.' }, 400);
-
-      const { data: targetProfile } = await admin
-        .from('profiles')
-        .select('email, full_name, role')
-        .eq('id', id)
-        .single();
-      if (!targetProfile) return json({ error: 'Cuenta no encontrada.' }, 404);
-
-      const tempPassword = randomTempPassword();
-      const { error } = await admin.auth.admin.updateUserById(id, { password: tempPassword });
-      if (error) return json({ error: error.message }, 400);
-      await admin.from('profiles').update({ must_change_password: true }).eq('id', id);
-
-      const { emailSent, emailError } = await maybeSendWelcomeEmail({
-        role: targetProfile.role,
-        email: targetProfile.email,
-        fullName: targetProfile.full_name ?? targetProfile.email,
-        tempPassword,
-        isReset: true,
-      });
-      return json({ tempPassword, emailSent, emailError });
     }
 
     return json({ error: `Acción no reconocida: ${action}` }, 400);

@@ -12,13 +12,34 @@ import ToolsPage from './pages/ToolsPage';
 import WeeklyProgressDashboard from './pages/WeeklyProgressDashboard';
 import ForceChangePassword from './pages/ForceChangePassword';
 import WeeklyProgressGate from './components/WeeklyProgressGate';
+import LinkMicrosoftAccountBanner from './components/LinkMicrosoftAccountBanner';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, signOut } = useAuth();
   if (loading) return <div className="wrap">Cargando…</div>;
   if (!session) return <Navigate to="/login" replace />;
   if (profile?.mustChangePassword) return <ForceChangePassword />;
-  return <>{children}</>;
+  // Hay sesión pero ninguna fila en profiles -- cuenta de Microsoft sin
+  // invitación que de algún modo llegó a tener sesión (o perfil borrado
+  // aparte). Antes esto dejaba pasar silenciosamente con profile=null, y
+  // varias pantallas asumen profile.role sin chequear null.
+  if (profile === null) {
+    return (
+      <div className="wrap">
+        <div className="empty-state">
+          <p>Tu cuenta no está autorizada en el Sistema de Auditoría.</p>
+          <p>Pide que Dirección de Sistemas te invite primero.</p>
+          <button className="btn ghost small" onClick={() => signOut()}>Cerrar sesión</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <>
+      <LinkMicrosoftAccountBanner />
+      {children}
+    </>
+  );
 }
 
 // El cliente solo tiene su portal (lista de actas de sus proyectos) -- el

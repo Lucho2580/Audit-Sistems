@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "raiz": ".",
+  "incluir": [
+    "**/*"
+  ],
+  "excluir": [
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/out/**",
+    "**/coverage/**",
+    "**/.next/**",
+    "**/.nuxt/**",
+    "**/.turbo/**",
+    "**/target/**",
+    "**/bin/**",
+    "**/obj/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/__pycache__/**",
+    "**/vendor/**",
+    "**/*.min.js",
+    "**/*.d.ts"
+  ],
+  "salida": "docs/atlas",
+  "presupuestoTokens": {
+    "indice": 1500,
+    "ficha": 1500
+  },
+  "modulos": [
+    {
+      "slug": "components",
+      "nombre": "Components",
+      "resumen": "",
+      "globs": [
+        "src/components/**"
+      ],
+      "docs": [],
+      "antesDeCambiar": []
+    },
+    {
+      "slug": "context",
+      "nombre": "Context",
+      "resumen": "",
+      "globs": [
+        "src/context/**"
+      ],
+      "docs": [],
+      "antesDeCambiar": []
+    },
+    {
+      "slug": "lib",
+      "nombre": "Lib",
+      "resumen": "",
+      "globs": [
+        "src/lib/**"
+      ],
+      "docs": [],
+      "antesDeCambiar": []
+    },
+    {
+      "slug": "pages",
+      "nombre": "Pages",
+      "resumen": "",
+      "globs": [
+        "src/pages/**"
+      ],
+      "docs": [],
+      "antesDeCambiar": []
+    }
+  ],
+  "ignorarCarpetas": [],
+  "plataformaComun": {
+    "umbralModulos": 3,
+    "slug": "comun",
+    "nombre": "Plataforma común"
+  },
+  "puntosEntrada": [],
+  "pruebas": {
+    "comandos": {},
+    "maxArchivosImpacto": 40
+  },
+  "verificar": {},
+  "arquitectura": [],
+  "reglasProyecto": [],
+  "seguridad": {
+    "decoradoresAuth": [
+      "UseGuards",
+      "Authorized",
+      "Roles",
+      "RequierePermiso",
+      "login_required",
+      "permission_required",
+      "PreAuthorize",
+      "Secured",
+      "Authorize"
+    ],
+    "middlewaresAuth": [
+      "requireAuth",
+      "authenticate",
+      "isAuthenticated",
+      "verifyToken",
+      "auth"
+    ],
+    "rutasPublicas": [],
+    "validadores": [
+      "ValidationPipe",
+      "zod",
+      "joi",
+      "celebrate",
+      "validate",
+      "pydantic",
+      "Valid"
+    ],
+    "excluirReglas": [],
+    "severidadMinimaCI": "alta"
+  },
+  "caracteresPorToken": 3.6
+}

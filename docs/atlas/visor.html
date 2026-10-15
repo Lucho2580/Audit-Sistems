@@ -1,0 +1,929 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
+<title>Atlas · mapa</title>
+<style>
+:root{--fondo:#ffffff;--panel:#f6f7f9;--borde:#d9dde3;--texto:#1d2330;--suave:#5d6675;--acento:#2f6fde;--alerta:#c62f3a;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-tema="claro"]){--fondo:#14171c;--panel:#1c2027;--borde:#2e343e;--texto:#e6e9ef;--suave:#9aa3b2;--acento:#6ea0ff;--alerta:#ff7a84;color-scheme:dark}}
+:root[data-tema="oscuro"]{--fondo:#14171c;--panel:#1c2027;--borde:#2e343e;--texto:#e6e9ef;--suave:#9aa3b2;--acento:#6ea0ff;--alerta:#ff7a84;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--fondo);color:var(--texto);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+body{display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--borde);background:var(--panel)}
+header h1{font-size:15px;margin:0 6px 0 0}
+.grupo{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+button{font:inherit;color:inherit;background:var(--fondo);border:1px solid var(--borde);border-radius:6px;padding:3px 10px;cursor:pointer}
+button[aria-pressed="true"]{background:var(--acento);border-color:var(--acento);color:#fff}
+label{display:inline-flex;gap:4px;align-items:center;cursor:pointer;user-select:none}
+.muestra{display:inline-block;width:10px;height:3px;border-radius:2px}
+.buscador{position:relative;flex:1 1 220px;max-width:360px}
+.buscador input{width:100%;font:inherit;color:inherit;background:var(--fondo);border:1px solid var(--borde);border-radius:6px;padding:4px 10px}
+#resultados{position:absolute;z-index:5;left:0;right:0;top:100%;margin:4px 0 0;padding:4px 0;list-style:none;background:var(--panel);border:1px solid var(--borde);border-radius:6px;max-height:320px;overflow:auto;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+#resultados li{padding:4px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#resultados li:hover,#resultados li.activo{background:var(--fondo)}
+main{display:grid;grid-template-columns:1fr minmax(280px,380px);flex:1;min-height:0}
+#zona{position:relative;min-height:300px;overflow:hidden}
+canvas{display:block;touch-action:none;cursor:grab}
+#estadisticas{position:absolute;left:10px;bottom:8px;color:var(--suave);font-size:12px}
+#panel{border-left:1px solid var(--borde);background:var(--panel);padding:12px 16px;overflow:auto}
+#panel h2{font-size:16px;margin:4px 0 8px;word-break:break-word}
+#panel h3{font-size:13px;margin:14px 0 4px;color:var(--suave);text-transform:uppercase;letter-spacing:.03em}
+#panel ul{margin:0;padding-left:18px}
+#panel li{margin:2px 0;word-break:break-word}
+#panel a{color:var(--acento);text-decoration:none}
+#panel a:hover{text-decoration:underline}
+code{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--fondo);border:1px solid var(--borde);border-radius:4px;padding:0 4px}
+.tipo,.n{color:var(--suave);font-size:12px}
+.alerta{color:var(--alerta);font-weight:600}
+.capas{border-left:3px solid var(--alerta);padding-left:8px}
+.chip{display:inline-flex;gap:6px;align-items:center;background:var(--fondo);border:1px solid var(--borde);border-radius:999px;padding:1px 4px 1px 10px}
+.chip button{border:0;padding:0 6px;background:transparent}
+[hidden]{display:none!important}
+@media (max-width:760px){main{grid-template-columns:1fr;grid-template-rows:60vh auto;height:auto}#panel{border-left:0;border-top:1px solid var(--borde)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Atlas</h1>
+  <div class="grupo" role="group" aria-label="Vista">
+    <button type="button" data-vista="modulos" aria-pressed="true">Módulos</button>
+    <button type="button" data-vista="archivos" aria-pressed="false">Archivos</button>
+    <span id="foco" class="chip" hidden>foco: <b id="foco-nombre"></b><button type="button" id="foco-quitar" aria-label="Quitar foco">×</button></span>
+  </div>
+  <div class="buscador">
+    <input id="buscar" type="search" placeholder="Buscar módulo, archivo, ruta o modelo  ( / )" autocomplete="off" aria-label="Buscar">
+    <ul id="resultados" role="listbox" hidden></ul>
+  </div>
+  <div class="grupo" role="group" aria-label="Aristas">
+    <label><input type="checkbox" data-filtro="import"><span class="muestra" style="background:#7f8c9d"></span>imports</label>
+    <label><input type="checkbox" data-filtro="http"><span class="muestra" style="background:#f28e2b"></span>http</label>
+    <label><input type="checkbox" data-filtro="db"><span class="muestra" style="background:#59a14f"></span>datos</label>
+    <label><input type="checkbox" data-filtro="prueba"><span class="muestra" style="background:#b07aa1"></span>pruebas</label>
+    <label><input type="checkbox" data-filtro="docs"><span class="muestra" style="background:#3f9fd8"></span>docs</label>
+  </div>
+  <div class="grupo" id="capas" role="group" aria-label="Capas" hidden>
+    <label><input type="checkbox" data-capa="seguridad">seguridad</label>
+    <label><input type="checkbox" data-capa="hotspots">hotspots</label>
+    <label><input type="checkbox" data-capa="huecosPruebas">sin pruebas</label>
+    <label><input type="checkbox" data-capa="riesgo">riesgo</label>
+  </div>
+  <div class="grupo">
+    <button type="button" id="btn-encuadrar" title="Encuadrar">⤢</button>
+    <button type="button" id="btn-tema" title="Cambiar tema claro/oscuro">◐</button>
+  </div>
+</header>
+<main>
+  <div id="zona"><canvas id="lienzo" tabindex="0" aria-label="Grafo del proyecto"></canvas><div id="estadisticas"></div></div>
+  <aside id="panel" aria-live="polite"></aside>
+</main>
+<script id="datos" type="application/json">{"titulo":"frontend","stack":"npm","modulos":[{"id":"m:components","slug":"components","nombre":"Components","resumen":"","archivos":19,"tokens":41950,"comun":false,"revisar":false,"antesDeCambiar":[],"pruebas":{"archivos":[],"comandos":[]}},{"id":"m:context","slug":"context","nombre":"Context","resumen":"","archivos":4,"tokens":3007,"comun":false,"revisar":false,"antesDeCambiar":[],"pruebas":{"archivos":[],"comandos":[]}},{"id":"m:lib","slug":"lib","nombre":"Lib","resumen":"","archivos":8,"tokens":17250,"comun":false,"revisar":false,"antesDeCambiar":[],"pruebas":{"archivos":[],"comandos":[]}},{"id":"m:pages","slug":"pages","nombre":"Pages","resumen":"","archivos":11,"tokens":26038,"comun":false,"revisar":false,"antesDeCambiar":[],"pruebas":{"archivos":[],"comandos":[]}},{"id":"m:comun","slug":"comun","nombre":"Plataforma común","resumen":"Código compartido por varios módulos (asignado automáticamente).","archivos":4,"tokens":6131,"comun":true,"revisar":false,"antesDeCambiar":[],"pruebas":{"archivos":[],"comandos":[]}}],"archivos":[{"id":"f:src/App.tsx","ruta":"src/App.tsx","modulo":"m:context","lineas":111,"tokens":994,"complejidad":5,"prueba":false,"exp":["default"]},{"id":"f:src/components/AppShell.tsx","ruta":"src/components/AppShell.tsx","modulo":"m:components","lineas":141,"tokens":1386,"complejidad":23,"prueba":false,"exp":["default"]},{"id":"f:src/components/AuditHistoryPanel.tsx","ruta":"src/components/AuditHistoryPanel.tsx","modulo":"m:components","lineas":77,"tokens":795,"complejidad":14,"prueba":false,"exp":["default"]},{"id":"f:src/components/ChecklistSectionCard.tsx","ruta":"src/components/ChecklistSectionCard.tsx","modulo":"m:components","lineas":244,"tokens":2592,"complejidad":33,"prueba":false,"exp":["default"]},{"id":"f:src/components/DeliveryPanel.tsx","ruta":"src/components/DeliveryPanel.tsx","modulo":"m:components","lineas":132,"tokens":1422,"complejidad":20,"prueba":false,"exp":["default"]},{"id":"f:src/components/DirectorySearch.tsx","ruta":"src/components/DirectorySearch.tsx","modulo":"m:components","lineas":134,"tokens":1271,"complejidad":19,"prueba":false,"exp":["initials","default"]},{"id":"f:src/components/GlobalGantt.tsx","ruta":"src/components/GlobalGantt.tsx","modulo":"m:components","lineas":166,"tokens":1985,"complejidad":23,"prueba":false,"exp":["default"]},{"id":"f:src/components/MeetingsCalendar.tsx","ruta":"src/components/MeetingsCalendar.tsx","modulo":"m:components","lineas":1005,"tokens":12937,"complejidad":108,"prueba":false,"exp":["default"]},{"id":"f:src/components/MultiProfilePicker.tsx","ruta":"src/components/MultiProfilePicker.tsx","modulo":"m:components","lineas":104,"tokens":1029,"complejidad":14,"prueba":false,"exp":["default"]},{"id":"f:src/components/ParticipationChart.tsx","ruta":"src/components/ParticipationChart.tsx","modulo":"m:components","lineas":61,"tokens":622,"complejidad":6,"prueba":false,"exp":["default"]},{"id":"f:src/components/PhaseProgressChart.tsx","ruta":"src/components/PhaseProgressChart.tsx","modulo":"m:components","lineas":56,"tokens":580,"complejidad":3,"prueba":false,"exp":["default"]},{"id":"f:src/components/ProfilePicker.tsx","ruta":"src/components/ProfilePicker.tsx","modulo":"m:components","lineas":93,"tokens":905,"complejidad":15,"prueba":false,"exp":["default"]},{"id":"f:src/components/ProjectCalendar.tsx","ruta":"src/components/ProjectCalendar.tsx","modulo":"m:components","lineas":120,"tokens":1215,"complejidad":22,"prueba":false,"exp":["default"]},{"id":"f:src/components/ProjectImportModal.tsx","ruta":"src/components/ProjectImportModal.tsx","modulo":"m:components","lineas":239,"tokens":3037,"complejidad":55,"prueba":false,"exp":["default"]},{"id":"f:src/components/ProjectsDashboard.tsx","ruta":"src/components/ProjectsDashboard.tsx","modulo":"m:components","lineas":123,"tokens":1278,"complejidad":11,"prueba":false,"exp":["default"]},{"id":"f:src/components/ProvidersPanel.tsx","ruta":"src/components/ProvidersPanel.tsx","modulo":"m:components","lineas":97,"tokens":767,"complejidad":7,"prueba":false,"exp":["default"]},{"id":"f:src/components/RoadmapPhases.tsx","ruta":"src/components/RoadmapPhases.tsx","modulo":"m:components","lineas":356,"tokens":4355,"complejidad":61,"prueba":false,"exp":["default"]},{"id":"f:src/components/WeeklyProgressDetail.tsx","ruta":"src/components/WeeklyProgressDetail.tsx","modulo":"m:components","lineas":162,"tokens":1986,"complejidad":18,"prueba":false,"exp":["default"]},{"id":"f:src/components/WeeklyProgressGate.tsx","ruta":"src/components/WeeklyProgressGate.tsx","modulo":"m:components","lineas":127,"tokens":1413,"complejidad":14,"prueba":false,"exp":["default"]},{"id":"f:src/components/WeeklyProgressPanel.tsx","ruta":"src/components/WeeklyProgressPanel.tsx","modulo":"m:components","lineas":215,"tokens":2375,"complejidad":25,"prueba":false,"exp":["default"]},{"id":"f:src/context/AuthContext.tsx","ruta":"src/context/AuthContext.tsx","modulo":"m:context","lineas":109,"tokens":1120,"complejidad":7,"prueba":false,"exp":["AuthProvider","useAuth"]},{"id":"f:src/context/ShellChromeContext.tsx","ruta":"src/context/ShellChromeContext.tsx","modulo":"m:context","lineas":74,"tokens":730,"complejidad":1,"prueba":false,"exp":["SidebarStatItem","SidebarPanel","DashboardToggleState","ShellChromeProvider","useSidebarPanel","useSidebarStats","useDashboardToggle"]},{"id":"f:src/lib/acta.ts","ruta":"src/lib/acta.ts","modulo":"m:lib","lineas":310,"tokens":4676,"complejidad":42,"resumen":"Genera el acta de reunión con el formato institucional (FO-GT-018): arma","prueba":false,"exp":["generateMeetingActaPdf"]},{"id":"f:src/lib/charts.ts","ruta":"src/lib/charts.ts","modulo":"m:lib","lineas":31,"tokens":364,"complejidad":1,"resumen":"Helpers SVG compartidos para los donuts de la app (antes vivían solo","prueba":false,"exp":["polarToCartesian","donutSlicePath","colorForIndex"]},{"id":"f:src/lib/csv.ts","ruta":"src/lib/csv.ts","modulo":"m:lib","lineas":79,"tokens":572,"complejidad":11,"prueba":false,"exp":["exportProjectsCsv","downloadCsvTemplate"]},{"id":"f:src/lib/pdf.ts","ruta":"src/lib/pdf.ts","modulo":"m:lib","lineas":162,"tokens":1968,"complejidad":18,"prueba":false,"exp":["generateProjectReportPdf"]},{"id":"f:src/lib/projectImport.ts","ruta":"src/lib/projectImport.ts","modulo":"m:lib","lineas":86,"tokens":1145,"complejidad":12,"prueba":false,"exp":["ProjectImportRow","downloadProjectImportTemplate","parseProjectImportFile"]},{"id":"f:src/lib/services.ts","ruta":"src/lib/services.ts","modulo":"m:lib","lineas":717,"tokens":8288,"complejidad":37,"prueba":false,"exp":["ProjectsApi","SignStatus","MeetingsApi","ActasApi","DailyNotesApi","DirectoryUser","DirectoryApi","AuditApi","ProvidersApi","ProfilesApi","AdminCreatedUser","UsersAdminApi","AuthApi","WeeklyProgressApi","PhasesApi","PhaseTasksApi"]},{"id":"f:src/lib/site.ts","ruta":"src/lib/site.ts","modulo":"m:lib","lineas":5,"tokens":120,"complejidad":1,"resumen":"URL pública de la app en producción. Se usa para armar cualquier enlace","prueba":false,"exp":["SITE_URL"]},{"id":"f:src/lib/supabase.ts","ruta":"src/lib/supabase.ts","modulo":"m:lib","lineas":13,"tokens":117,"complejidad":2,"prueba":false,"exp":["supabase"]},{"id":"f:src/main.tsx","ruta":"src/main.tsx","modulo":"m:context","lineas":19,"tokens":163,"complejidad":0,"prueba":false,"exp":[]},{"id":"f:src/pages/ClientPortal.tsx","ruta":"src/pages/ClientPortal.tsx","modulo":"m:pages","lineas":180,"tokens":1969,"complejidad":22,"prueba":false,"exp":["default"]},{"id":"f:src/pages/ForceChangePassword.tsx","ruta":"src/pages/ForceChangePassword.tsx","modulo":"m:pages","lineas":79,"tokens":754,"complejidad":7,"prueba":false,"exp":["default"]},{"id":"f:src/pages/Login.tsx","ruta":"src/pages/Login.tsx","modulo":"m:pages","lineas":144,"tokens":1598,"complejidad":9,"prueba":false,"exp":["default"]},{"id":"f:src/pages/ProjectDetail.tsx","ruta":"src/pages/ProjectDetail.tsx","modulo":"m:pages","lineas":213,"tokens":2283,"complejidad":14,"prueba":false,"exp":["default"]},{"id":"f:src/pages/ProjectsList.tsx","ruta":"src/pages/ProjectsList.tsx","modulo":"m:pages","lineas":681,"tokens":8522,"complejidad":120,"prueba":false,"exp":["default"]},{"id":"f:src/pages/ProjectWeeklyProgress.tsx","ruta":"src/pages/ProjectWeeklyProgress.tsx","modulo":"m:pages","lineas":66,"tokens":562,"complejidad":8,"prueba":false,"exp":["default"]},{"id":"f:src/pages/ResetPassword.tsx","ruta":"src/pages/ResetPassword.tsx","modulo":"m:pages","lineas":107,"tokens":1131,"complejidad":13,"prueba":false,"exp":["default"]},{"id":"f:src/pages/SignPage.tsx","ruta":"src/pages/SignPage.tsx","modulo":"m:pages","lineas":231,"tokens":2349,"complejidad":29,"prueba":false,"exp":["default"]},{"id":"f:src/pages/TimelinePage.tsx","ruta":"src/pages/TimelinePage.tsx","modulo":"m:pages","lineas":201,"tokens":2276,"complejidad":24,"prueba":false,"exp":["default"]},{"id":"f:src/pages/ToolsPage.tsx","ruta":"src/pages/ToolsPage.tsx","modulo":"m:pages","lineas":310,"tokens":3464,"complejidad":44,"prueba":false,"exp":["default"]},{"id":"f:src/pages/WeeklyProgressDashboard.tsx","ruta":"src/pages/WeeklyProgressDashboard.tsx","modulo":"m:pages","lineas":110,"tokens":1130,"complejidad":14,"prueba":false,"exp":["default"]},{"id":"f:src/types/domain.ts","ruta":"src/types/domain.ts","modulo":"m:comun","lineas":369,"tokens":3102,"complejidad":16,"prueba":false,"exp":["UserRole","ProjectStatus","MeetingState","Profile","ProfileLite","ProjectPerson","ACTOR_ROLE_LABEL","ItemLog","ChecklistItem","Section","Stats","Project","DailyNote","Provider","PhaseKey","QaStatus","QA_STATUS_META","ProjectPhase","ProjectPhaseSummary","PhaseTask","DelayStatus","DELAY_STATUS_META","taskExpectedPct","taskDelayStatus","worstDelayStatus","Participant","Compromiso","Meeting","AuditLogEntry","STATUS_META","MEETING_STATE_META","PERCENT_OPTIONS","bandOf","phaseEndDate","daysBetween","computeItemStats","computeProjectStats","WeeklyProgressEntry","WeeklyProgressWeek","WeeklyProgressDetail","WeeklyProgressOverviewRow","currentWeekWindow"]},{"id":"f:supabase/functions/_shared/graph.ts","ruta":"supabase/functions/_shared/graph.ts","modulo":"m:comun","lineas":76,"tokens":837,"complejidad":9,"resumen":"Cliente mínimo de Microsoft Graph (OAuth2 client-credentials) para mandar","prueba":false,"exp":["MailMessage","sendMail"]},{"id":"f:supabase/functions/admin-manage-user/index.ts","ruta":"supabase/functions/admin-manage-user/index.ts","modulo":"m:comun","lineas":190,"tokens":2145,"complejidad":36,"resumen":"Crea/edita/elimina cuentas de \"Persona asignada\" (desarrollador) y","prueba":false,"exp":[]},{"id":"f:vite.config.ts","ruta":"vite.config.ts","modulo":"m:comun","lineas":7,"tokens":47,"complejidad":0,"prueba":false,"exp":["default"]}],"rutas":[],"modelos":[],"docs":[],"aristas":[{"t":"import","de":"f:src/App.tsx","a":"f:src/components/WeeklyProgressGate.tsx"},{"t":"import","de":"f:src/App.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/App.tsx","a":"f:src/pages/ClientPortal.tsx"},{"t":"import","de":"f:src/App.tsx","a":"f:src/pages/ForceChangePassword.tsx"},{"t":"import","de":"f:src/App.tsx","a":"f:src/pages/Login.tsx"},{"t":"import","de":"f:src/App.tsx","a":"f:src/pages/ProjectDetail.tsx"},{"t":"import","de":"f:src/App.tsx","a":"f:src/pages/ProjectsList.tsx"},{"t":"import","de":"f:src/App.tsx","a":"f:src/pages/ProjectWeeklyProgress.tsx"},{"t":"import","de":"f:src/App.tsx","a":"f:src/pages/ResetPassword.tsx"},{"t":"import","de":"f:src/App.tsx","a":"f:src/pages/SignPage.tsx"},{"t":"import","de":"f:src/App.tsx","a":"f:src/pages/TimelinePage.tsx"},{"t":"import","de":"f:src/App.tsx","a":"f:src/pages/ToolsPage.tsx"},{"t":"import","de":"f:src/App.tsx","a":"f:src/pages/WeeklyProgressDashboard.tsx"},{"t":"import","de":"f:src/components/AppShell.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/components/AppShell.tsx","a":"f:src/context/ShellChromeContext.tsx"},{"t":"import","de":"f:src/components/AuditHistoryPanel.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/AuditHistoryPanel.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/ChecklistSectionCard.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/ChecklistSectionCard.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/DeliveryPanel.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/DeliveryPanel.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/DirectorySearch.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/GlobalGantt.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/MeetingsCalendar.tsx","a":"f:src/components/DirectorySearch.tsx"},{"t":"import","de":"f:src/components/MeetingsCalendar.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/components/MeetingsCalendar.tsx","a":"f:src/lib/acta.ts"},{"t":"import","de":"f:src/components/MeetingsCalendar.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/MeetingsCalendar.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/MultiProfilePicker.tsx","a":"f:src/components/DirectorySearch.tsx"},{"t":"import","de":"f:src/components/MultiProfilePicker.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/MultiProfilePicker.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/ParticipationChart.tsx","a":"f:src/lib/charts.ts"},{"t":"import","de":"f:src/components/ParticipationChart.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/PhaseProgressChart.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/PhaseProgressChart.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/ProfilePicker.tsx","a":"f:src/components/DirectorySearch.tsx"},{"t":"import","de":"f:src/components/ProfilePicker.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/ProfilePicker.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/ProjectCalendar.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/ProjectImportModal.tsx","a":"f:src/lib/projectImport.ts"},{"t":"import","de":"f:src/components/ProjectImportModal.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/ProjectImportModal.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/ProjectsDashboard.tsx","a":"f:src/lib/charts.ts"},{"t":"import","de":"f:src/components/ProjectsDashboard.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/ProvidersPanel.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/ProvidersPanel.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/RoadmapPhases.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/RoadmapPhases.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/WeeklyProgressDetail.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/WeeklyProgressDetail.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/WeeklyProgressGate.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/components/WeeklyProgressGate.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/WeeklyProgressGate.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/components/WeeklyProgressPanel.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/components/WeeklyProgressPanel.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/components/WeeklyProgressPanel.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/context/AuthContext.tsx","a":"f:src/lib/site.ts"},{"t":"import","de":"f:src/context/AuthContext.tsx","a":"f:src/lib/supabase.ts"},{"t":"import","de":"f:src/context/AuthContext.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/lib/acta.ts","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/lib/csv.ts","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/lib/pdf.ts","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/lib/services.ts","a":"f:src/lib/site.ts"},{"t":"import","de":"f:src/lib/services.ts","a":"f:src/lib/supabase.ts"},{"t":"import","de":"f:src/lib/services.ts","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/main.tsx","a":"f:src/App.tsx"},{"t":"import","de":"f:src/main.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/main.tsx","a":"f:src/context/ShellChromeContext.tsx"},{"t":"import","de":"f:src/pages/ClientPortal.tsx","a":"f:src/components/AppShell.tsx"},{"t":"import","de":"f:src/pages/ClientPortal.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/pages/ClientPortal.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/pages/ClientPortal.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/pages/ForceChangePassword.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/pages/ForceChangePassword.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/pages/ForceChangePassword.tsx","a":"f:src/lib/supabase.ts"},{"t":"import","de":"f:src/pages/Login.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/components/AppShell.tsx"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/components/AuditHistoryPanel.tsx"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/components/ChecklistSectionCard.tsx"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/components/DeliveryPanel.tsx"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/components/MeetingsCalendar.tsx"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/components/ParticipationChart.tsx"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/components/PhaseProgressChart.tsx"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/components/ProjectCalendar.tsx"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/components/RoadmapPhases.tsx"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/context/ShellChromeContext.tsx"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/lib/pdf.ts"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/pages/ProjectDetail.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/pages/ProjectsList.tsx","a":"f:src/components/AppShell.tsx"},{"t":"import","de":"f:src/pages/ProjectsList.tsx","a":"f:src/components/MultiProfilePicker.tsx"},{"t":"import","de":"f:src/pages/ProjectsList.tsx","a":"f:src/components/ProfilePicker.tsx"},{"t":"import","de":"f:src/pages/ProjectsList.tsx","a":"f:src/components/ProjectImportModal.tsx"},{"t":"import","de":"f:src/pages/ProjectsList.tsx","a":"f:src/components/ProjectsDashboard.tsx"},{"t":"import","de":"f:src/pages/ProjectsList.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/pages/ProjectsList.tsx","a":"f:src/context/ShellChromeContext.tsx"},{"t":"import","de":"f:src/pages/ProjectsList.tsx","a":"f:src/lib/csv.ts"},{"t":"import","de":"f:src/pages/ProjectsList.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/pages/ProjectsList.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/pages/ProjectWeeklyProgress.tsx","a":"f:src/components/AppShell.tsx"},{"t":"import","de":"f:src/pages/ProjectWeeklyProgress.tsx","a":"f:src/components/WeeklyProgressPanel.tsx"},{"t":"import","de":"f:src/pages/ProjectWeeklyProgress.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/pages/ProjectWeeklyProgress.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/pages/ProjectWeeklyProgress.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/pages/ResetPassword.tsx","a":"f:src/lib/supabase.ts"},{"t":"import","de":"f:src/pages/SignPage.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/pages/TimelinePage.tsx","a":"f:src/components/AppShell.tsx"},{"t":"import","de":"f:src/pages/TimelinePage.tsx","a":"f:src/components/GlobalGantt.tsx"},{"t":"import","de":"f:src/pages/TimelinePage.tsx","a":"f:src/context/ShellChromeContext.tsx"},{"t":"import","de":"f:src/pages/TimelinePage.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/pages/TimelinePage.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/pages/ToolsPage.tsx","a":"f:src/components/AppShell.tsx"},{"t":"import","de":"f:src/pages/ToolsPage.tsx","a":"f:src/components/DirectorySearch.tsx"},{"t":"import","de":"f:src/pages/ToolsPage.tsx","a":"f:src/components/ProvidersPanel.tsx"},{"t":"import","de":"f:src/pages/ToolsPage.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/pages/ToolsPage.tsx","a":"f:src/context/ShellChromeContext.tsx"},{"t":"import","de":"f:src/pages/ToolsPage.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/pages/ToolsPage.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:src/pages/WeeklyProgressDashboard.tsx","a":"f:src/components/AppShell.tsx"},{"t":"import","de":"f:src/pages/WeeklyProgressDashboard.tsx","a":"f:src/components/WeeklyProgressDetail.tsx"},{"t":"import","de":"f:src/pages/WeeklyProgressDashboard.tsx","a":"f:src/context/AuthContext.tsx"},{"t":"import","de":"f:src/pages/WeeklyProgressDashboard.tsx","a":"f:src/lib/services.ts"},{"t":"import","de":"f:src/pages/WeeklyProgressDashboard.tsx","a":"f:src/types/domain.ts"},{"t":"import","de":"f:supabase/functions/admin-manage-user/index.ts","a":"f:supabase/functions/_shared/graph.ts"}],"capas":{}}</script>
+<script>
+/*
+ * Código del visor que corre en el navegador. Es un script (no un módulo): se compila con el
+ * resto del proyecto para tener chequeo de tipos y se incrusta en docs/atlas/visor.html.
+ * Sin dependencias ni red. Todo dentro de una IIFE para no chocar con globales del DOM.
+ */
+(function () {
+    const D = JSON.parse(document.getElementById('datos').textContent || '{}');
+    const $ = (id) => document.getElementById(id);
+    // ------------------------------------------------------------------ índices
+    const modulos = new Map(D.modulos.map((m) => [m.id, m]));
+    const archivos = new Map(D.archivos.map((a) => [a.id, a]));
+    const rutas = new Map(D.rutas.map((r) => [r.id, r]));
+    const modelos = new Map(D.modelos.map((m) => [m.id, m]));
+    const docs = new Map(D.docs.map((d) => [d.id, d]));
+    const salientes = new Map();
+    const entrantes = new Map();
+    for (const e of D.aristas) {
+        if (!salientes.has(e.de))
+            salientes.set(e.de, []);
+        salientes.get(e.de).push(e);
+        if (!entrantes.has(e.a))
+            entrantes.set(e.a, []);
+        entrantes.get(e.a).push(e);
+    }
+    const moduloDe = (id) => archivos.get(id)?.modulo ?? rutas.get(id)?.modulo ?? modelos.get(id)?.modulo ?? (modulos.has(id) ? id : undefined);
+    const PALETA = ['#4e79a7', '#f28e2b', '#59a14f', '#e15759', '#76b7b2', '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#3f9fd8', '#c0a000', '#8cd17d'];
+    const colorModulo = new Map();
+    D.modulos.forEach((m, i) => colorModulo.set(m.id, m.comun ? '#8a8f98' : PALETA[i % PALETA.length]));
+    const COLOR_ARISTA = { import: '#7f8c9d', http: '#f28e2b', db: '#59a14f', prueba: '#b07aa1', docs: '#3f9fd8', declara: '#7f8c9d' };
+    // ------------------------------------------------------------------ estado
+    const estado = {
+        vista: 'modulos',
+        filtros: { import: true, http: true, db: true, prueba: false, docs: false },
+        capas: { seguridad: false, hotspots: false, huecosPruebas: false, riesgo: false },
+        foco: null,
+        seleccion: null,
+        hover: null,
+    };
+    // ------------------------------------------------------------------ tema
+    const raizHtml = document.documentElement;
+    const temaGuardado = (() => {
+        try {
+            return localStorage.getItem('atlas-tema');
+        }
+        catch {
+            return null;
+        }
+    })();
+    if (temaGuardado === 'claro' || temaGuardado === 'oscuro')
+        raizHtml.dataset.tema = temaGuardado;
+    $('btn-tema').addEventListener('click', () => {
+        const oscuroAhora = raizHtml.dataset.tema ? raizHtml.dataset.tema === 'oscuro' : matchMedia('(prefers-color-scheme: dark)').matches;
+        raizHtml.dataset.tema = oscuroAhora ? 'claro' : 'oscuro';
+        try {
+            localStorage.setItem('atlas-tema', raizHtml.dataset.tema);
+        }
+        catch {
+            /* sin almacenamiento */
+        }
+        dibujar();
+    });
+    const css = (v) => getComputedStyle(raizHtml).getPropertyValue(v).trim();
+    // ------------------------------------------------------------------ construcción del grafo visible
+    let nodos = [];
+    let enlaces = [];
+    let porIdNodo = new Map();
+    let alfa = 1;
+    function posInicial(i, n) {
+        // Espiral áurea: determinista y bien repartida.
+        const ang = i * 2.399963;
+        const rad = 30 * Math.sqrt(i + 1) * (n > 200 ? 1.6 : 1);
+        return [Math.cos(ang) * rad, Math.sin(ang) * rad];
+    }
+    function construirVista() {
+        const previos = porIdNodo;
+        nodos = [];
+        enlaces = [];
+        porIdNodo = new Map();
+        const agregar = (n) => {
+            const p = previos.get(n.id);
+            const [x, y] = p ? [p.x, p.y] : posInicial(nodos.length, 100);
+            const nodo = { ...n, x, y, vx: 0, vy: 0 };
+            nodos.push(nodo);
+            porIdNodo.set(n.id, nodo);
+            return nodo;
+        };
+        if (estado.vista === 'modulos') {
+            for (const m of D.modulos)
+                agregar({ id: m.id, tipo: 'modulo', etiqueta: m.slug, r: 8 + Math.sqrt(m.archivos) * 3, color: colorModulo.get(m.id) });
+            const pesos = new Map();
+            for (const e of D.aristas) {
+                if (!estado.filtros[e.t] || e.t === 'docs')
+                    continue;
+                const ma = moduloDe(e.de);
+                const mb = moduloDe(e.a);
+                if (!ma || !mb || ma === mb)
+                    continue;
+                const k = ma + '>' + mb + '>' + e.t;
+                const prev = pesos.get(k);
+                if (prev)
+                    prev.peso++;
+                else
+                    pesos.set(k, { s: porIdNodo.get(ma), t: porIdNodo.get(mb), tipo: e.t, peso: 1 });
+            }
+            enlaces = [...pesos.values()];
+        }
+        else {
+            const visibles = new Set();
+            const enFoco = (id) => !estado.foco || moduloDe(id) === estado.foco;
+            for (const a of D.archivos)
+                if (enFoco(a.id))
+                    visibles.add(a.id);
+            if (estado.foco) {
+                // Vecinos directos del módulo en foco, para ver con quién habla.
+                for (const e of D.aristas) {
+                    if (!estado.filtros[e.t])
+                        continue;
+                    if (visibles.has(e.de) && archivos.has(e.a))
+                        visibles.add(e.a);
+                    if (visibles.has(e.a) && archivos.has(e.de))
+                        visibles.add(e.de);
+                }
+            }
+            const lista = D.archivos.filter((a) => visibles.has(a.id));
+            for (const a of lista) {
+                agregar({ id: a.id, tipo: 'archivo', etiqueta: a.ruta.slice(a.ruta.lastIndexOf('/') + 1), r: 3 + Math.min(9, Math.sqrt(a.lineas) / 2.5), color: colorModulo.get(a.modulo) ?? '#888' });
+            }
+            const asegurar = (id) => {
+                if (porIdNodo.has(id))
+                    return porIdNodo.get(id);
+                const r = rutas.get(id);
+                if (r) {
+                    const n = agregar({ id, tipo: 'ruta', etiqueta: r.metodo + ' ' + r.plantilla, r: 5, color: COLOR_ARISTA.http });
+                    const f = porIdNodo.get(r.archivo);
+                    if (f)
+                        enlaces.push({ s: n, t: f, tipo: 'declara', peso: 1 });
+                    return n;
+                }
+                const m = modelos.get(id);
+                if (m)
+                    return agregar({ id, tipo: 'modelo', etiqueta: m.nombre, r: 6, color: COLOR_ARISTA.db });
+                const d = docs.get(id);
+                if (d)
+                    return agregar({ id, tipo: 'doc', etiqueta: d.ruta.slice(d.ruta.lastIndexOf('/') + 1), r: 5, color: COLOR_ARISTA.docs });
+                const mod = modulos.get(id);
+                if (mod)
+                    return agregar({ id, tipo: 'modulo', etiqueta: mod.slug, r: 9, color: colorModulo.get(id) });
+                return undefined;
+            };
+            for (const e of D.aristas) {
+                if (!estado.filtros[e.t])
+                    continue;
+                const deVisible = visibles.has(e.de) || (e.t === 'docs' && visibles.has(e.a)) || (e.t === 'docs' && modulos.has(e.a) && enFoco(e.a));
+                if (!deVisible && !visibles.has(e.a))
+                    continue;
+                if (e.t === 'import' && !(visibles.has(e.de) && visibles.has(e.a)))
+                    continue;
+                const s = asegurar(e.de);
+                const t = asegurar(e.a);
+                if (s && t)
+                    enlaces.push({ s, t, tipo: e.t, peso: 1 });
+            }
+        }
+        alfa = 1;
+        actualizarEstadisticas();
+    }
+    function quadtree() {
+        if (!nodos.length)
+            return null;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const n of nodos) {
+            if (n.x < minX)
+                minX = n.x;
+            if (n.y < minY)
+                minY = n.y;
+            if (n.x > maxX)
+                maxX = n.x;
+            if (n.y > maxY)
+                maxY = n.y;
+        }
+        const tam = Math.max(maxX - minX, maxY - minY) + 1;
+        const raiz = { x0: minX, y0: minY, tam, masa: 0, cx: 0, cy: 0 };
+        const insertar = (c, n, prof) => {
+            c.cx = (c.cx * c.masa + n.x) / (c.masa + 1);
+            c.cy = (c.cy * c.masa + n.y) / (c.masa + 1);
+            c.masa++;
+            if (!c.hijos && !c.nodo) {
+                c.nodo = n;
+                return;
+            }
+            if (prof > 30)
+                return;
+            if (!c.hijos) {
+                const m = c.tam / 2;
+                c.hijos = [0, 1, 2, 3].map((i) => ({ x0: c.x0 + (i % 2) * m, y0: c.y0 + Math.floor(i / 2) * m, tam: m, masa: 0, cx: 0, cy: 0 }));
+                const viejo = c.nodo;
+                c.nodo = undefined;
+                insertar(hijo(c, viejo), viejo, prof + 1);
+            }
+            insertar(hijo(c, n), n, prof + 1);
+        };
+        const hijo = (c, n) => {
+            const m = c.tam / 2;
+            return c.hijos[(n.x >= c.x0 + m ? 1 : 0) + (n.y >= c.y0 + m ? 2 : 0)];
+        };
+        for (const n of nodos)
+            insertar(raiz, n, 0);
+        return raiz;
+    }
+    function paso() {
+        const k = estado.vista === 'modulos' ? 2600 : 900;
+        const arbol = quadtree();
+        const repeler = (n, c) => {
+            if (!c.masa || c.nodo === n)
+                return;
+            const dx = n.x - c.cx;
+            const dy = n.y - c.cy;
+            const d2 = dx * dx + dy * dy + 0.01;
+            if (c.hijos && (c.tam * c.tam) / d2 > 0.64) {
+                for (const h of c.hijos)
+                    repeler(n, h);
+                return;
+            }
+            const f = (k * c.masa * alfa) / d2;
+            n.vx += dx * f * 0.05;
+            n.vy += dy * f * 0.05;
+        };
+        if (arbol)
+            for (const n of nodos)
+                repeler(n, arbol);
+        const largo = estado.vista === 'modulos' ? 140 : 45;
+        for (const e of enlaces) {
+            const dx = e.t.x - e.s.x;
+            const dy = e.t.y - e.s.y;
+            const d = Math.sqrt(dx * dx + dy * dy) || 1;
+            const fuerza = ((d - largo - e.s.r - e.t.r) / d) * 0.04 * alfa * Math.min(3, 1 + Math.log(e.peso));
+            e.s.vx += dx * fuerza;
+            e.s.vy += dy * fuerza;
+            e.t.vx -= dx * fuerza;
+            e.t.vy -= dy * fuerza;
+        }
+        for (const n of nodos) {
+            n.vx -= n.x * 0.004 * alfa;
+            n.vy -= n.y * 0.004 * alfa;
+            if (n.fijo) {
+                n.vx = n.vy = 0;
+                continue;
+            }
+            n.vx *= 0.6;
+            n.vy *= 0.6;
+            n.x += Math.max(-30, Math.min(30, n.vx));
+            n.y += Math.max(-30, Math.min(30, n.vy));
+        }
+        alfa *= 0.985;
+    }
+    // ------------------------------------------------------------------ dibujo
+    const lienzo = $('lienzo');
+    const ctx = lienzo.getContext('2d');
+    const vista = { escala: 1, tx: 0, ty: 0 };
+    let ancho = 0;
+    let alto = 0;
+    function redimensionar() {
+        const r = lienzo.parentElement.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        ancho = r.width;
+        alto = r.height;
+        lienzo.width = Math.round(ancho * dpr);
+        lienzo.height = Math.round(alto * dpr);
+        lienzo.style.width = ancho + 'px';
+        lienzo.style.height = alto + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        dibujar();
+    }
+    const aPantalla = (x, y) => [x * vista.escala + vista.tx + ancho / 2, y * vista.escala + vista.ty + alto / 2];
+    const aMundo = (px, py) => [(px - ancho / 2 - vista.tx) / vista.escala, (py - alto / 2 - vista.ty) / vista.escala];
+    function vecinos(id) {
+        const s = new Set([id]);
+        for (const e of enlaces) {
+            if (e.s.id === id)
+                s.add(e.t.id);
+            if (e.t.id === id)
+                s.add(e.s.id);
+        }
+        return s;
+    }
+    function dibujar() {
+        ctx.clearRect(0, 0, ancho, alto);
+        const texto = css('--texto');
+        const fondo = css('--fondo');
+        const activo = estado.hover?.id ?? estado.seleccion;
+        const resaltados = activo && porIdNodo.has(activo) ? vecinos(activo) : null;
+        ctx.save();
+        ctx.translate(ancho / 2 + vista.tx, alto / 2 + vista.ty);
+        ctx.scale(vista.escala, vista.escala);
+        // Aristas
+        for (const e of enlaces) {
+            const tenue = resaltados && !(resaltados.has(e.s.id) && resaltados.has(e.t.id));
+            ctx.globalAlpha = tenue ? 0.06 : e.tipo === 'declara' ? 0.25 : 0.55;
+            ctx.strokeStyle = COLOR_ARISTA[e.tipo];
+            ctx.lineWidth = Math.min(6, 0.8 + Math.log(e.peso)) / Math.sqrt(vista.escala);
+            if (e.tipo === 'prueba' || e.tipo === 'docs')
+                ctx.setLineDash([4, 3]);
+            ctx.beginPath();
+            ctx.moveTo(e.s.x, e.s.y);
+            ctx.lineTo(e.t.x, e.t.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            // Punta de flecha
+            if (!tenue && e.tipo !== 'declara') {
+                const dx = e.t.x - e.s.x;
+                const dy = e.t.y - e.s.y;
+                const d = Math.sqrt(dx * dx + dy * dy) || 1;
+                const px = e.t.x - (dx / d) * (e.t.r + 2);
+                const py = e.t.y - (dy / d) * (e.t.r + 2);
+                const a = 5 / Math.sqrt(vista.escala);
+                ctx.fillStyle = COLOR_ARISTA[e.tipo];
+                ctx.beginPath();
+                ctx.moveTo(px, py);
+                ctx.lineTo(px - (dx / d) * a * 1.6 + (dy / d) * a, py - (dy / d) * a * 1.6 - (dx / d) * a);
+                ctx.lineTo(px - (dx / d) * a * 1.6 - (dy / d) * a, py - (dy / d) * a * 1.6 + (dx / d) * a);
+                ctx.fill();
+            }
+        }
+        ctx.globalAlpha = 1;
+        // Nodos
+        const hot = new Map((D.capas.hotspots ?? []).map((h) => [h.archivo, h.puntaje]));
+        const huecos = new Set(D.capas.huecosPruebas ?? []);
+        for (const n of nodos) {
+            const tenue = resaltados && !resaltados.has(n.id);
+            ctx.globalAlpha = tenue ? 0.18 : 1;
+            if (estado.capas.hotspots && hot.has(n.id)) {
+                ctx.fillStyle = 'rgba(242,142,43,0.35)';
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, n.r + 4 + 10 * hot.get(n.id), 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = n.color;
+            ctx.strokeStyle = fondo;
+            ctx.lineWidth = 1.5 / vista.escala;
+            ctx.beginPath();
+            if (n.tipo === 'ruta') {
+                ctx.moveTo(n.x, n.y - n.r);
+                ctx.lineTo(n.x + n.r, n.y);
+                ctx.lineTo(n.x, n.y + n.r);
+                ctx.lineTo(n.x - n.r, n.y);
+                ctx.closePath();
+            }
+            else if (n.tipo === 'modelo' || n.tipo === 'doc') {
+                ctx.rect(n.x - n.r, n.y - n.r, n.r * 2, n.r * 2);
+            }
+            else {
+                ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+            }
+            ctx.fill();
+            ctx.stroke();
+            const seg = D.capas.seguridad?.[n.id];
+            if (estado.capas.seguridad && seg && ((seg.critica ?? 0) + (seg.alta ?? 0) + (seg.media ?? 0) > 0)) {
+                ctx.strokeStyle = (seg.critica ?? 0) + (seg.alta ?? 0) > 0 ? '#e15759' : '#edc948';
+                ctx.lineWidth = 3 / vista.escala;
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, n.r + 3, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            if (estado.capas.huecosPruebas && huecos.has(n.id)) {
+                ctx.strokeStyle = '#b07aa1';
+                ctx.setLineDash([3, 2]);
+                ctx.lineWidth = 2 / vista.escala;
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, n.r + 5, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            const riesgo = D.capas.riesgo?.[n.id];
+            if (estado.capas.riesgo && riesgo !== undefined) {
+                ctx.fillStyle = riesgo >= 70 ? '#e15759' : riesgo >= 40 ? '#f28e2b' : '#59a14f';
+                ctx.beginPath();
+                ctx.arc(n.x + n.r * 0.8, n.y - n.r * 0.8, 3.5 / vista.escala + 1, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            if (n.id === estado.seleccion) {
+                ctx.strokeStyle = texto;
+                ctx.lineWidth = 2.5 / vista.escala;
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, n.r + 6, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+        // Etiquetas (solo si caben: módulos siempre; archivos al acercar o al resaltar)
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = texto;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        const tam = 12 / vista.escala;
+        ctx.font = tam + 'px system-ui, sans-serif';
+        for (const n of nodos) {
+            const mostrar = n.tipo === 'modulo' || vista.escala > 1.3 || (resaltados && resaltados.has(n.id)) || n.id === estado.seleccion;
+            if (!mostrar || (resaltados && !resaltados.has(n.id)))
+                continue;
+            ctx.fillText(n.etiqueta, n.x, n.y + n.r + (n.id === estado.seleccion ? 9 : 3) / vista.escala);
+        }
+        ctx.restore();
+    }
+    let animando = false;
+    function animar() {
+        if (animando)
+            return;
+        animando = true;
+        const bucle = () => {
+            for (let i = 0; i < (nodos.length > 800 ? 1 : 2); i++)
+                paso();
+            dibujar();
+            if (alfa > 0.02)
+                requestAnimationFrame(bucle);
+            else
+                animando = false;
+        };
+        requestAnimationFrame(bucle);
+    }
+    function encuadrar() {
+        if (!nodos.length)
+            return;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const n of nodos) {
+            minX = Math.min(minX, n.x - n.r);
+            minY = Math.min(minY, n.y - n.r);
+            maxX = Math.max(maxX, n.x + n.r);
+            maxY = Math.max(maxY, n.y + n.r);
+        }
+        vista.escala = Math.min(2.5, Math.max(0.05, Math.min(ancho / (maxX - minX + 80), alto / (maxY - minY + 80))));
+        vista.tx = -((minX + maxX) / 2) * vista.escala;
+        vista.ty = -((minY + maxY) / 2) * vista.escala;
+        dibujar();
+    }
+    function centrarEn(id) {
+        const n = porIdNodo.get(id);
+        if (!n)
+            return;
+        vista.escala = Math.max(vista.escala, 1.2);
+        vista.tx = -n.x * vista.escala;
+        vista.ty = -n.y * vista.escala;
+        dibujar();
+    }
+    // ------------------------------------------------------------------ interacción
+    function nodoEn(px, py) {
+        const [x, y] = aMundo(px, py);
+        let mejor = null;
+        let mejorD = Infinity;
+        for (const n of nodos) {
+            const d = Math.hypot(n.x - x, n.y - y);
+            if (d < n.r + 4 / vista.escala && d < mejorD) {
+                mejor = n;
+                mejorD = d;
+            }
+        }
+        return mejor;
+    }
+    let arrastre = null;
+    lienzo.addEventListener('pointerdown', (ev) => {
+        lienzo.setPointerCapture(ev.pointerId);
+        const n = nodoEn(ev.offsetX, ev.offsetY);
+        arrastre = { nodo: n, x: ev.offsetX, y: ev.offsetY, movido: false };
+        if (n)
+            n.fijo = true;
+    });
+    lienzo.addEventListener('pointermove', (ev) => {
+        if (arrastre) {
+            const dx = ev.offsetX - arrastre.x;
+            const dy = ev.offsetY - arrastre.y;
+            if (Math.abs(dx) + Math.abs(dy) > 3)
+                arrastre.movido = true;
+            if (arrastre.nodo) {
+                const [x, y] = aMundo(ev.offsetX, ev.offsetY);
+                arrastre.nodo.x = x;
+                arrastre.nodo.y = y;
+                alfa = Math.max(alfa, 0.3);
+                animar();
+            }
+            else {
+                vista.tx += dx;
+                vista.ty += dy;
+                arrastre.x = ev.offsetX;
+                arrastre.y = ev.offsetY;
+                dibujar();
+            }
+            return;
+        }
+        const n = nodoEn(ev.offsetX, ev.offsetY);
+        if (n !== estado.hover) {
+            estado.hover = n;
+            lienzo.style.cursor = n ? 'pointer' : 'grab';
+            lienzo.title = n ? n.etiqueta : '';
+            dibujar();
+        }
+    });
+    lienzo.addEventListener('pointerup', () => {
+        if (!arrastre)
+            return;
+        const { nodo, movido } = arrastre;
+        if (nodo)
+            nodo.fijo = false;
+        if (!movido)
+            seleccionar(nodo ? nodo.id : null, false);
+        arrastre = null;
+    });
+    lienzo.addEventListener('dblclick', (ev) => {
+        const n = nodoEn(ev.offsetX, ev.offsetY);
+        if (n?.tipo === 'modulo')
+            enfocarModulo(n.id);
+    });
+    lienzo.addEventListener('wheel', (ev) => {
+        ev.preventDefault();
+        const [x, y] = aMundo(ev.offsetX, ev.offsetY);
+        const f = Math.exp(-ev.deltaY * 0.0015);
+        vista.escala = Math.max(0.03, Math.min(8, vista.escala * f));
+        const [sx, sy] = aPantalla(x, y);
+        vista.tx += ev.offsetX - sx;
+        vista.ty += ev.offsetY - sy;
+        dibujar();
+    }, { passive: false });
+    lienzo.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape')
+            seleccionar(null, false);
+    });
+    // ------------------------------------------------------------------ panel de detalle
+    const panel = $('panel');
+    const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const enlace = (id, texto) => '<a href="#" data-ir="' + esc(id) + '">' + esc(texto ?? etiquetaDe(id)) + '</a>';
+    function etiquetaDe(id) {
+        return modulos.get(id)?.slug ?? archivos.get(id)?.ruta ?? (rutas.get(id) ? rutas.get(id).metodo + ' ' + rutas.get(id).plantilla : undefined) ?? modelos.get(id)?.nombre ?? docs.get(id)?.ruta ?? id;
+    }
+    const lista = (titulo, items, max = 40) => items.length
+        ? '<h3>' + esc(titulo) + ' <span class="n">' + items.length + '</span></h3><ul>' + items.slice(0, max).map((i) => '<li>' + i + '</li>').join('') + (items.length > max ? '<li class="n">… y ' + (items.length - max) + ' más</li>' : '') + '</ul>'
+        : '';
+    const capasDe = (id) => {
+        const partes = [];
+        const s = D.capas.seguridad?.[id];
+        if (s)
+            partes.push('Seguridad: ' + ['critica', 'alta', 'media', 'baja'].filter((k) => s[k]).map((k) => s[k] + ' ' + k).join(', '));
+        const h = (D.capas.hotspots ?? []).find((x) => x.archivo === id);
+        if (h)
+            partes.push('Hotspot: ' + h.puntaje.toFixed(2));
+        if ((D.capas.huecosPruebas ?? []).includes(id))
+            partes.push('Sin pruebas que lo cubran');
+        if (D.capas.riesgo?.[id] !== undefined)
+            partes.push('Riesgo: ' + D.capas.riesgo[id]);
+        return partes.length ? '<p class="capas">' + partes.map(esc).join(' · ') + '</p>' : '';
+    };
+    function detalle(id) {
+        const m = modulos.get(id);
+        if (m) {
+            const usa = new Map();
+            const usado = new Map();
+            for (const e of D.aristas) {
+                if (e.t !== 'import' && e.t !== 'http')
+                    continue;
+                const a = moduloDe(e.de);
+                const b = moduloDe(e.a);
+                if (!a || !b || a === b)
+                    continue;
+                if (a === id)
+                    usa.set(b, (usa.get(b) ?? 0) + 1);
+                if (b === id)
+                    usado.set(a, (usado.get(a) ?? 0) + 1);
+            }
+            const fmt = (mm) => [...mm].sort((x, y) => y[1] - x[1]).map(([k, n]) => enlace(k) + ' <span class="n">' + n + '</span>');
+            const arch = D.archivos.filter((a) => a.modulo === id).sort((x, y) => x.ruta.localeCompare(y.ruta));
+            return ('<p class="tipo">Módulo' + (m.comun ? ' · plataforma común' : '') + (m.revisar ? ' · <b>revisar</b>' : '') + '</p>' +
+                '<h2>' + esc(m.nombre) + ' <code>' + esc(m.slug) + '</code></h2>' +
+                (m.resumen ? '<p>' + esc(m.resumen) + '</p>' : '') +
+                '<p class="n">' + m.archivos + ' archivos · ~' + m.tokens.toLocaleString('es-CO') + ' tokens · <a href="modulos/' + esc(m.slug) + '.md">ficha</a> · <a href="#" data-foco="' + esc(id) + '">ver archivos</a></p>' +
+                capasDe(id) +
+                lista('Antes de cambiar', m.antesDeCambiar.map(esc)) +
+                lista('Usa', fmt(usa)) +
+                lista('Lo usan', fmt(usado)) +
+                lista('Rutas', D.rutas.filter((r) => r.modulo === id).map((r) => enlace(r.id) + (r.auth.length ? '' : r.publica ? ' <span class="n">pública</span>' : ' <span class="alerta">sin auth</span>'))) +
+                lista('Pruebas', m.pruebas.comandos.map((c) => '<code>' + esc(c) + '</code>')) +
+                lista('Archivos', arch.map((a) => enlace(a.id, a.ruta)), 60));
+        }
+        const a = archivos.get(id);
+        if (a) {
+            const sal = salientes.get(id) ?? [];
+            const ent = entrantes.get(id) ?? [];
+            return ('<p class="tipo">Archivo' + (a.prueba ? ' · prueba' : '') + ' · ' + enlace(a.modulo) + '</p>' +
+                '<h2><code>' + esc(a.ruta) + '</code></h2>' +
+                (a.resumen ? '<p>' + esc(a.resumen) + '</p>' : '') +
+                '<p class="n">' + a.lineas + ' líneas · ~' + a.tokens + ' tokens · complejidad ' + a.complejidad + '</p>' +
+                capasDe(id) +
+                lista('Exporta', a.exp.map((s) => '<code>' + esc(s) + '</code>')) +
+                lista('Importa', sal.filter((e) => e.t === 'import').map((e) => enlace(e.a))) +
+                lista('Lo importan', ent.filter((e) => e.t === 'import').map((e) => enlace(e.de))) +
+                lista('Rutas que declara', D.rutas.filter((r) => r.archivo === id).map((r) => enlace(r.id) + ' <span class="n">L' + r.linea + '</span>')) +
+                lista('Llama a rutas', sal.filter((e) => e.t === 'http').map((e) => enlace(e.a))) +
+                lista('Modelos', sal.filter((e) => e.t === 'db').map((e) => enlace(e.a) + ' <span class="n">' + esc(e.op ?? '') + '</span>')) +
+                lista('Cubre (pruebas)', sal.filter((e) => e.t === 'prueba').map((e) => enlace(e.a))));
+        }
+        const r = rutas.get(id);
+        if (r) {
+            return ('<p class="tipo">Ruta HTTP · ' + enlace(r.modulo) + '</p>' +
+                '<h2><code>' + esc(r.metodo + ' ' + r.plantilla) + '</code></h2>' +
+                '<p>' + enlace(r.archivo) + ' <span class="n">L' + r.linea + '</span></p>' +
+                '<p>' + (r.auth.length ? '🔒 ' + r.auth.map(esc).join(', ') : r.publica ? 'Pública (permitida en la configuración)' : '<span class="alerta">⚠ Sin autenticación detectada</span>') + '</p>' +
+                '<p>' + (r.validacion.length ? 'Validación: ' + r.validacion.map(esc).join(', ') : '<span class="n">Sin validación detectada</span>') + '</p>' +
+                capasDe(id) +
+                lista('Clientes', (entrantes.get(id) ?? []).filter((e) => e.t === 'http').map((e) => enlace(e.de))));
+        }
+        const md = modelos.get(id);
+        if (md) {
+            return ('<p class="tipo">Modelo de datos · ' + esc(md.origen) + '</p>' +
+                '<h2>' + esc(md.nombre) + '</h2>' +
+                '<p>' + enlace(md.archivo) + ' <span class="n">L' + md.linea + '</span></p>' +
+                lista('Campos', md.campos.map((c) => '<code>' + esc(c) + '</code>' + (md.pii.includes(c) ? ' <span class="alerta">PII</span>' : '')), 80) +
+                lista('Usado por', (entrantes.get(id) ?? []).filter((e) => e.t === 'db').map((e) => enlace(e.de) + ' <span class="n">' + esc(e.op ?? '') + '</span>')));
+        }
+        const d = docs.get(id);
+        if (d) {
+            return ('<p class="tipo">Documento</p><h2>' + esc(d.titulo) + '</h2><p><code>' + esc(d.ruta) + '</code></p>' +
+                lista('Menciona módulos', (salientes.get(id) ?? []).filter((e) => e.t === 'docs').map((e) => enlace(e.a) + ' <span class="n">L' + e.lineas[0] + '-L' + e.lineas[1] + '</span>')));
+        }
+        return '';
+    }
+    function mostrarPanel() {
+        if (!estado.seleccion) {
+            panel.innerHTML =
+                '<p class="tipo">' + esc(D.stack) + '</p><h2>' + esc(D.titulo) + '</h2>' +
+                    '<p>' + D.modulos.length + ' módulos · ' + D.archivos.length + ' archivos · ' + D.rutas.length + ' rutas · ' + D.modelos.length + ' modelos</p>' +
+                    '<p class="n">Clic en un nodo para ver su detalle. Doble clic en un módulo para ver sus archivos. Rueda para acercar, arrastre para mover.</p>' +
+                    lista('Módulos', [...D.modulos].sort((a, b) => b.archivos - a.archivos).map((m) => enlace(m.id) + ' <span class="n">' + m.archivos + '</span>'), 100);
+            return;
+        }
+        panel.innerHTML = detalle(estado.seleccion) || '<p>No encontrado: ' + esc(estado.seleccion) + '</p>';
+    }
+    panel.addEventListener('click', (ev) => {
+        const el = ev.target.closest('a');
+        if (!el)
+            return;
+        const ir = el.getAttribute('data-ir');
+        const foco = el.getAttribute('data-foco');
+        if (ir) {
+            ev.preventDefault();
+            seleccionar(ir, true);
+        }
+        else if (foco) {
+            ev.preventDefault();
+            enfocarModulo(foco);
+        }
+    });
+    // ------------------------------------------------------------------ selección, foco y enlaces #modulo= / #archivo=
+    function hashDe(id) {
+        if (!id)
+            return '';
+        if (modulos.has(id))
+            return '#modulo=' + encodeURIComponent(modulos.get(id).slug);
+        if (archivos.has(id))
+            return '#archivo=' + encodeURIComponent(archivos.get(id).ruta);
+        if (rutas.has(id))
+            return '#ruta=' + encodeURIComponent(id.slice(2));
+        if (modelos.has(id))
+            return '#modelo=' + encodeURIComponent(modelos.get(id).nombre);
+        return '';
+    }
+    function seleccionar(id, centrar) {
+        estado.seleccion = id;
+        if (id && !porIdNodo.has(id)) {
+            // Pasar a la vista que contiene el nodo.
+            const m = moduloDe(id);
+            if (estado.vista === 'modulos' && !modulos.has(id)) {
+                estado.vista = 'archivos';
+                estado.foco = m ?? null;
+                sincronizarControles();
+                construirVista();
+                for (let i = 0; i < 150; i++)
+                    paso();
+            }
+            else if (estado.vista === 'archivos' && estado.foco && m !== estado.foco) {
+                estado.foco = m ?? null;
+                sincronizarControles();
+                construirVista();
+                for (let i = 0; i < 150; i++)
+                    paso();
+            }
+        }
+        const h = hashDe(id);
+        if (location.hash !== h)
+            history.replaceState(null, '', h || location.pathname + location.search);
+        mostrarPanel();
+        if (centrar && id)
+            centrarEn(id);
+        dibujar();
+    }
+    function enfocarModulo(id) {
+        estado.vista = 'archivos';
+        estado.foco = id;
+        sincronizarControles();
+        construirVista();
+        for (let i = 0; i < 200; i++)
+            paso();
+        encuadrar();
+        animar();
+        seleccionar(id, false);
+    }
+    function leerHash() {
+        const m = /^#(modulo|archivo|ruta|modelo)=(.+)$/.exec(location.hash);
+        if (!m)
+            return;
+        const valor = decodeURIComponent(m[2]);
+        const id = m[1] === 'modulo' ? D.modulos.find((x) => x.slug === valor)?.id :
+            m[1] === 'archivo' ? 'f:' + valor :
+                m[1] === 'ruta' ? 'r:' + valor :
+                    D.modelos.find((x) => x.nombre === valor)?.id;
+        if (id)
+            seleccionar(id, true);
+    }
+    window.addEventListener('hashchange', leerHash);
+    // ------------------------------------------------------------------ controles
+    function sincronizarControles() {
+        for (const b of document.querySelectorAll('[data-vista]'))
+            b.setAttribute('aria-pressed', String(b.dataset.vista === estado.vista));
+        const chip = $('foco');
+        chip.hidden = !(estado.vista === 'archivos' && estado.foco);
+        $('foco-nombre').textContent = estado.foco ? modulos.get(estado.foco)?.slug ?? '' : '';
+    }
+    for (const b of document.querySelectorAll('[data-vista]')) {
+        b.addEventListener('click', () => {
+            estado.vista = b.dataset.vista;
+            if (estado.vista === 'modulos')
+                estado.foco = null;
+            sincronizarControles();
+            construirVista();
+            for (let i = 0; i < 150; i++)
+                paso();
+            encuadrar();
+            animar();
+        });
+    }
+    $('foco-quitar').addEventListener('click', () => {
+        estado.foco = null;
+        sincronizarControles();
+        construirVista();
+        for (let i = 0; i < 150; i++)
+            paso();
+        encuadrar();
+        animar();
+    });
+    for (const c of document.querySelectorAll('[data-filtro]')) {
+        const t = c.dataset.filtro;
+        c.checked = estado.filtros[t];
+        c.addEventListener('change', () => {
+            estado.filtros[t] = c.checked;
+            construirVista();
+            animar();
+        });
+    }
+    const capasDisponibles = Object.keys(estado.capas).filter((k) => {
+        const v = D.capas[k];
+        return Array.isArray(v) ? v.length > 0 : !!v && Object.keys(v).length > 0;
+    });
+    $('capas').hidden = !capasDisponibles.length;
+    for (const c of document.querySelectorAll('[data-capa]')) {
+        const k = c.dataset.capa;
+        c.closest('label').hidden = !capasDisponibles.includes(k);
+        c.addEventListener('change', () => {
+            estado.capas[k] = c.checked;
+            dibujar();
+        });
+    }
+    $('btn-encuadrar').addEventListener('click', encuadrar);
+    // Búsqueda
+    const entrada = $('buscar');
+    const resultados = $('resultados');
+    const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const indiceBusqueda = [
+        ...D.modulos.map((m) => ({ id: m.id, texto: norm(m.slug + ' ' + m.nombre), tipo: 'módulo', etiqueta: m.slug })),
+        ...D.archivos.map((a) => ({ id: a.id, texto: norm(a.ruta + ' ' + a.exp.join(' ')), tipo: 'archivo', etiqueta: a.ruta })),
+        ...D.rutas.map((r) => ({ id: r.id, texto: norm(r.metodo + ' ' + r.plantilla), tipo: 'ruta', etiqueta: r.metodo + ' ' + r.plantilla })),
+        ...D.modelos.map((m) => ({ id: m.id, texto: norm(m.nombre + ' ' + m.campos.join(' ')), tipo: 'modelo', etiqueta: m.nombre })),
+    ];
+    let activoResultado = -1;
+    function buscar() {
+        const q = norm(entrada.value.trim());
+        activoResultado = -1;
+        if (!q) {
+            resultados.hidden = true;
+            return;
+        }
+        const terminos = q.split(/\s+/);
+        const encontrados = indiceBusqueda
+            .filter((x) => terminos.every((t) => x.texto.includes(t)))
+            .sort((a, b) => Number(!norm(a.etiqueta).startsWith(terminos[0])) - Number(!norm(b.etiqueta).startsWith(terminos[0])) || a.etiqueta.length - b.etiqueta.length)
+            .slice(0, 12);
+        resultados.innerHTML = encontrados.length
+            ? encontrados.map((x, i) => '<li role="option" data-i="' + i + '" data-id="' + esc(x.id) + '"><span class="n">' + x.tipo + '</span> ' + esc(x.etiqueta) + '</li>').join('')
+            : '<li class="n">Sin resultados</li>';
+        resultados.hidden = false;
+    }
+    entrada.addEventListener('input', buscar);
+    entrada.addEventListener('keydown', (ev) => {
+        const items = [...resultados.querySelectorAll('li[data-id]')];
+        if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+            ev.preventDefault();
+            activoResultado = (activoResultado + (ev.key === 'ArrowDown' ? 1 : -1) + items.length) % Math.max(1, items.length);
+            items.forEach((li, i) => li.classList.toggle('activo', i === activoResultado));
+        }
+        else if (ev.key === 'Enter') {
+            const li = items[Math.max(0, activoResultado)];
+            if (li)
+                elegir(li.dataset.id);
+        }
+        else if (ev.key === 'Escape') {
+            resultados.hidden = true;
+        }
+    });
+    resultados.addEventListener('mousedown', (ev) => {
+        const li = ev.target.closest('li[data-id]');
+        if (li)
+            elegir(li.dataset.id);
+    });
+    function elegir(id) {
+        resultados.hidden = true;
+        entrada.value = '';
+        seleccionar(id, true);
+    }
+    document.addEventListener('keydown', (ev) => {
+        if (ev.key === '/' && document.activeElement !== entrada) {
+            ev.preventDefault();
+            entrada.focus();
+        }
+    });
+    function actualizarEstadisticas() {
+        $('estadisticas').textContent = nodos.length + ' nodos · ' + enlaces.length + ' aristas';
+    }
+    // ------------------------------------------------------------------ inicio
+    window.addEventListener('resize', redimensionar);
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', dibujar);
+    construirVista();
+    for (let i = 0; i < 300; i++)
+        paso();
+    redimensionar();
+    encuadrar();
+    sincronizarControles();
+    mostrarPanel();
+    leerHash();
+    animar();
+})();
+</script>
+</body>
+</html>

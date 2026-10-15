@@ -1,0 +1,3520 @@
+{
+ "version": 1,
+ "stack": {
+  "gestores": [
+   "npm"
+  ],
+  "workspaces": false,
+  "frameworks": [],
+  "orm": [],
+  "pruebas": [],
+  "lenguajes": [
+   "typescript"
+  ]
+ },
+ "modulos": [
+  {
+   "id": "m:components",
+   "slug": "components",
+   "nombre": "Components",
+   "resumen": "",
+   "globs": [
+    "src/components/**"
+   ],
+   "comun": false,
+   "revisar": false,
+   "archivos": 19,
+   "tokens": 41950,
+   "antesDeCambiar": [],
+   "pruebas": {
+    "archivos": [],
+    "comandos": []
+   }
+  },
+  {
+   "id": "m:context",
+   "slug": "context",
+   "nombre": "Context",
+   "resumen": "",
+   "globs": [
+    "src/context/**"
+   ],
+   "comun": false,
+   "revisar": false,
+   "archivos": 4,
+   "tokens": 3007,
+   "antesDeCambiar": [],
+   "pruebas": {
+    "archivos": [],
+    "comandos": []
+   }
+  },
+  {
+   "id": "m:lib",
+   "slug": "lib",
+   "nombre": "Lib",
+   "resumen": "",
+   "globs": [
+    "src/lib/**"
+   ],
+   "comun": false,
+   "revisar": false,
+   "archivos": 8,
+   "tokens": 17250,
+   "antesDeCambiar": [],
+   "pruebas": {
+    "archivos": [],
+    "comandos": []
+   }
+  },
+  {
+   "id": "m:pages",
+   "slug": "pages",
+   "nombre": "Pages",
+   "resumen": "",
+   "globs": [
+    "src/pages/**"
+   ],
+   "comun": false,
+   "revisar": false,
+   "archivos": 11,
+   "tokens": 26038,
+   "antesDeCambiar": [],
+   "pruebas": {
+    "archivos": [],
+    "comandos": []
+   }
+  },
+  {
+   "id": "m:comun",
+   "slug": "comun",
+   "nombre": "Plataforma común",
+   "resumen": "Código compartido por varios módulos (asignado automáticamente).",
+   "globs": [],
+   "comun": true,
+   "revisar": false,
+   "archivos": 4,
+   "tokens": 6131,
+   "antesDeCambiar": [],
+   "pruebas": {
+    "archivos": [],
+    "comandos": []
+   }
+  }
+ ],
+ "archivos": [
+  {
+   "id": "f:src/App.tsx",
+   "ruta": "src/App.tsx",
+   "modulo": "m:context",
+   "lenguaje": "typescript",
+   "lineas": 111,
+   "tokens": 994,
+   "complejidad": 5,
+   "simbolos": [
+    {
+     "n": "PrivateRoute",
+     "k": "fn",
+     "l": 16,
+     "exp": false
+    },
+    {
+     "n": "StaffOnlyRoute",
+     "k": "fn",
+     "l": 27,
+     "exp": false
+    },
+    {
+     "n": "HomeRoute",
+     "k": "fn",
+     "l": 33,
+     "exp": false
+    },
+    {
+     "n": "App",
+     "k": "fn",
+     "l": 38,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 38,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/AppShell.tsx",
+   "ruta": "src/components/AppShell.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 141,
+   "tokens": 1386,
+   "complejidad": 23,
+   "simbolos": [
+    {
+     "n": "COLLAPSE_KEY",
+     "k": "var",
+     "l": 7,
+     "exp": false
+    },
+    {
+     "n": "ShellSidebar",
+     "k": "fn",
+     "l": 9,
+     "exp": false
+    },
+    {
+     "n": "AppShell",
+     "k": "fn",
+     "l": 126,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 126,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/AuditHistoryPanel.tsx",
+   "ruta": "src/components/AuditHistoryPanel.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 77,
+   "tokens": 795,
+   "complejidad": 14,
+   "simbolos": [
+    {
+     "n": "ACTION_LABEL",
+     "k": "var",
+     "l": 5,
+     "exp": false
+    },
+    {
+     "n": "ENTITY_LABEL",
+     "k": "var",
+     "l": 13,
+     "exp": false
+    },
+    {
+     "n": "describe",
+     "k": "fn",
+     "l": 22,
+     "exp": false
+    },
+    {
+     "n": "AuditHistoryPanel",
+     "k": "fn",
+     "l": 38,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 38,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/ChecklistSectionCard.tsx",
+   "ruta": "src/components/ChecklistSectionCard.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 244,
+   "tokens": 2592,
+   "complejidad": 33,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 5,
+     "exp": false
+    },
+    {
+     "n": "todayISO",
+     "k": "var",
+     "l": 15,
+     "exp": false
+    },
+    {
+     "n": "computeStats",
+     "k": "fn",
+     "l": 17,
+     "exp": false
+    },
+    {
+     "n": "ChecklistSectionCard",
+     "k": "fn",
+     "l": 23,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 23,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/DeliveryPanel.tsx",
+   "ruta": "src/components/DeliveryPanel.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 132,
+   "tokens": 1422,
+   "complejidad": 20,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 5,
+     "exp": false
+    },
+    {
+     "n": "todayISO",
+     "k": "fn",
+     "l": 13,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 15,
+     "exp": true
+    },
+    {
+     "n": "DeliveryPanel",
+     "k": "fn",
+     "l": 15,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/DirectorySearch.tsx",
+   "ruta": "src/components/DirectorySearch.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 134,
+   "tokens": 1271,
+   "complejidad": 19,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 4,
+     "exp": false
+    },
+    {
+     "n": "initials",
+     "k": "fn",
+     "l": 11,
+     "exp": true
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 19,
+     "exp": true
+    },
+    {
+     "n": "DirectorySearch",
+     "k": "fn",
+     "l": 19,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/GlobalGantt.tsx",
+   "ruta": "src/components/GlobalGantt.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 166,
+   "tokens": 1985,
+   "complejidad": 23,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 5,
+     "exp": false
+    },
+    {
+     "n": "STATUS_COLOR",
+     "k": "var",
+     "l": 9,
+     "exp": false
+    },
+    {
+     "n": "LABEL_COL",
+     "k": "var",
+     "l": 12,
+     "exp": false
+    },
+    {
+     "n": "DAY_MS",
+     "k": "var",
+     "l": 13,
+     "exp": false
+    },
+    {
+     "n": "DAY_W",
+     "k": "var",
+     "l": 17,
+     "exp": false
+    },
+    {
+     "n": "MONTH_SHORT",
+     "k": "var",
+     "l": 18,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 25,
+     "exp": true
+    },
+    {
+     "n": "GlobalGantt",
+     "k": "fn",
+     "l": 25,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/MeetingsCalendar.tsx",
+   "ruta": "src/components/MeetingsCalendar.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 1005,
+   "tokens": 12937,
+   "complejidad": 108,
+   "simbolos": [
+    {
+     "n": "MONTH_LABELS",
+     "k": "var",
+     "l": 8,
+     "exp": false
+    },
+    {
+     "n": "DAY_LABELS",
+     "k": "var",
+     "l": 12,
+     "exp": false
+    },
+    {
+     "n": "ROLE_ORDER",
+     "k": "var",
+     "l": 13,
+     "exp": false
+    },
+    {
+     "n": "pad2",
+     "k": "fn",
+     "l": 14,
+     "exp": false
+    },
+    {
+     "n": "todayISO",
+     "k": "fn",
+     "l": 15,
+     "exp": false
+    },
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 20,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 33,
+     "exp": true
+    },
+    {
+     "n": "MeetingsCalendar",
+     "k": "fn",
+     "l": 33,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/MultiProfilePicker.tsx",
+   "ruta": "src/components/MultiProfilePicker.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 104,
+   "tokens": 1029,
+   "complejidad": 14,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 6,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 18,
+     "exp": true
+    },
+    {
+     "n": "MultiProfilePicker",
+     "k": "fn",
+     "l": 18,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/ParticipationChart.tsx",
+   "ruta": "src/components/ParticipationChart.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 61,
+   "tokens": 622,
+   "complejidad": 6,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 5,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 11,
+     "exp": true
+    },
+    {
+     "n": "ParticipationChart",
+     "k": "fn",
+     "l": 11,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/PhaseProgressChart.tsx",
+   "ruta": "src/components/PhaseProgressChart.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 56,
+   "tokens": 580,
+   "complejidad": 3,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 4,
+     "exp": false
+    },
+    {
+     "n": "PERCENT_OPTIONS",
+     "k": "var",
+     "l": 10,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 16,
+     "exp": true
+    },
+    {
+     "n": "PhaseProgressChart",
+     "k": "fn",
+     "l": 16,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/ProfilePicker.tsx",
+   "ruta": "src/components/ProfilePicker.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 93,
+   "tokens": 905,
+   "complejidad": 15,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 6,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 18,
+     "exp": true
+    },
+    {
+     "n": "ProfilePicker",
+     "k": "fn",
+     "l": 18,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/ProjectCalendar.tsx",
+   "ruta": "src/components/ProjectCalendar.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 120,
+   "tokens": 1215,
+   "complejidad": 22,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 4,
+     "exp": false
+    },
+    {
+     "n": "MONTH_LABELS",
+     "k": "var",
+     "l": 9,
+     "exp": false
+    },
+    {
+     "n": "DAY_LABELS",
+     "k": "var",
+     "l": 13,
+     "exp": false
+    },
+    {
+     "n": "pad2",
+     "k": "fn",
+     "l": 14,
+     "exp": false
+    },
+    {
+     "n": "DayItem",
+     "k": "tipo",
+     "l": 16,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 24,
+     "exp": true
+    },
+    {
+     "n": "ProjectCalendar",
+     "k": "fn",
+     "l": 24,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/ProjectImportModal.tsx",
+   "ruta": "src/components/ProjectImportModal.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 239,
+   "tokens": 3037,
+   "complejidad": 55,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 6,
+     "exp": false
+    },
+    {
+     "n": "ValidatedRow",
+     "k": "tipo",
+     "l": 12,
+     "exp": false
+    },
+    {
+     "n": "RowResult",
+     "k": "tipo",
+     "l": 19,
+     "exp": false
+    },
+    {
+     "n": "byEmail",
+     "k": "fn",
+     "l": 21,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 25,
+     "exp": true
+    },
+    {
+     "n": "ProjectImportModal",
+     "k": "fn",
+     "l": 25,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/ProjectsDashboard.tsx",
+   "ruta": "src/components/ProjectsDashboard.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 123,
+   "tokens": 1278,
+   "complejidad": 11,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 5,
+     "exp": false
+    },
+    {
+     "n": "STATUS_COLORS",
+     "k": "var",
+     "l": 11,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 18,
+     "exp": true
+    },
+    {
+     "n": "ProjectsDashboard",
+     "k": "fn",
+     "l": 18,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/ProvidersPanel.tsx",
+   "ruta": "src/components/ProvidersPanel.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 97,
+   "tokens": 767,
+   "complejidad": 7,
+   "simbolos": [
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 5,
+     "exp": true
+    },
+    {
+     "n": "ProvidersPanel",
+     "k": "fn",
+     "l": 5,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/RoadmapPhases.tsx",
+   "ruta": "src/components/RoadmapPhases.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 356,
+   "tokens": 4355,
+   "complejidad": 61,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 5,
+     "exp": false
+    },
+    {
+     "n": "PHASE_COLORS",
+     "k": "var",
+     "l": 14,
+     "exp": false
+    },
+    {
+     "n": "TASK_STATUS_COLOR",
+     "k": "var",
+     "l": 18,
+     "exp": false
+    },
+    {
+     "n": "LABEL_COL",
+     "k": "var",
+     "l": 21,
+     "exp": false
+    },
+    {
+     "n": "DAY_MS",
+     "k": "var",
+     "l": 22,
+     "exp": false
+    },
+    {
+     "n": "DAY_W",
+     "k": "var",
+     "l": 23,
+     "exp": false
+    },
+    {
+     "n": "MONTH_SHORT",
+     "k": "var",
+     "l": 24,
+     "exp": false
+    },
+    {
+     "n": "addDays",
+     "k": "fn",
+     "l": 26,
+     "exp": false
+    },
+    {
+     "n": "fmtShort",
+     "k": "fn",
+     "l": 32,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 42,
+     "exp": true
+    },
+    {
+     "n": "RoadmapPhases",
+     "k": "fn",
+     "l": 42,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/WeeklyProgressDetail.tsx",
+   "ruta": "src/components/WeeklyProgressDetail.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 162,
+   "tokens": 1986,
+   "complejidad": 18,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 5,
+     "exp": false
+    },
+    {
+     "n": "indicatorTone",
+     "k": "fn",
+     "l": 9,
+     "exp": false
+    },
+    {
+     "n": "fmtDate",
+     "k": "fn",
+     "l": 15,
+     "exp": false
+    },
+    {
+     "n": "fmtDateLong",
+     "k": "fn",
+     "l": 19,
+     "exp": false
+    },
+    {
+     "n": "WEEK_META",
+     "k": "var",
+     "l": 26,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 32,
+     "exp": true
+    },
+    {
+     "n": "WeeklyProgressDetail",
+     "k": "fn",
+     "l": 32,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/WeeklyProgressGate.tsx",
+   "ruta": "src/components/WeeklyProgressGate.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 127,
+   "tokens": 1413,
+   "complejidad": 14,
+   "simbolos": [
+    {
+     "n": "PERCENT_STEPS",
+     "k": "var",
+     "l": 6,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 18,
+     "exp": true
+    },
+    {
+     "n": "WeeklyProgressGate",
+     "k": "fn",
+     "l": 18,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/components/WeeklyProgressPanel.tsx",
+   "ruta": "src/components/WeeklyProgressPanel.tsx",
+   "modulo": "m:components",
+   "lenguaje": "typescript",
+   "lineas": 215,
+   "tokens": 2375,
+   "complejidad": 25,
+   "simbolos": [
+    {
+     "n": "Props",
+     "k": "tipo",
+     "l": 6,
+     "exp": false
+    },
+    {
+     "n": "PERCENT_STEPS",
+     "k": "var",
+     "l": 12,
+     "exp": false
+    },
+    {
+     "n": "indicatorTone",
+     "k": "fn",
+     "l": 14,
+     "exp": false
+    },
+    {
+     "n": "fmtDate",
+     "k": "fn",
+     "l": 20,
+     "exp": false
+    },
+    {
+     "n": "fmtDateTime",
+     "k": "fn",
+     "l": 24,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 30,
+     "exp": true
+    },
+    {
+     "n": "WeeklyProgressPanel",
+     "k": "fn",
+     "l": 30,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/context/AuthContext.tsx",
+   "ruta": "src/context/AuthContext.tsx",
+   "modulo": "m:context",
+   "lenguaje": "typescript",
+   "lineas": 109,
+   "tokens": 1120,
+   "complejidad": 7,
+   "simbolos": [
+    {
+     "n": "AuthContextValue",
+     "k": "tipo",
+     "l": 7,
+     "exp": false
+    },
+    {
+     "n": "AuthContext",
+     "k": "var",
+     "l": 18,
+     "exp": false
+    },
+    {
+     "n": "AuthProvider",
+     "k": "fn",
+     "l": 20,
+     "exp": true
+    },
+    {
+     "n": "useAuth",
+     "k": "fn",
+     "l": 105,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/context/ShellChromeContext.tsx",
+   "ruta": "src/context/ShellChromeContext.tsx",
+   "modulo": "m:context",
+   "lenguaje": "typescript",
+   "lineas": 74,
+   "tokens": 730,
+   "complejidad": 1,
+   "simbolos": [
+    {
+     "n": "SidebarStatItem",
+     "k": "tipo",
+     "l": 7,
+     "exp": true
+    },
+    {
+     "n": "SidebarPanel",
+     "k": "tipo",
+     "l": 15,
+     "exp": true
+    },
+    {
+     "n": "DashboardToggleState",
+     "k": "tipo",
+     "l": 20,
+     "exp": true
+    },
+    {
+     "n": "ShellChromeContextValue",
+     "k": "tipo",
+     "l": 25,
+     "exp": false
+    },
+    {
+     "n": "ShellChromeContext",
+     "k": "var",
+     "l": 32,
+     "exp": false
+    },
+    {
+     "n": "ShellChromeProvider",
+     "k": "fn",
+     "l": 34,
+     "exp": true
+    },
+    {
+     "n": "useShellChrome",
+     "k": "fn",
+     "l": 44,
+     "exp": false
+    },
+    {
+     "n": "useSidebarPanel",
+     "k": "fn",
+     "l": 50,
+     "exp": true
+    },
+    {
+     "n": "useSidebarStats",
+     "k": "fn",
+     "l": 56,
+     "exp": true
+    },
+    {
+     "n": "useDashboardToggle",
+     "k": "fn",
+     "l": 67,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/lib/acta.ts",
+   "ruta": "src/lib/acta.ts",
+   "modulo": "m:lib",
+   "lenguaje": "typescript",
+   "lineas": 310,
+   "tokens": 4676,
+   "complejidad": 42,
+   "resumen": "Genera el acta de reunión con el formato institucional (FO-GT-018): arma",
+   "simbolos": [
+    {
+     "n": "ESCAPE_MAP",
+     "k": "var",
+     "l": 12,
+     "exp": false
+    },
+    {
+     "n": "esc",
+     "k": "fn",
+     "l": 13,
+     "exp": false
+    },
+    {
+     "n": "lines",
+     "k": "fn",
+     "l": 17,
+     "exp": false
+    },
+    {
+     "n": "fmtDate",
+     "k": "fn",
+     "l": 21,
+     "exp": false
+    },
+    {
+     "n": "fmtDateTime",
+     "k": "fn",
+     "l": 26,
+     "exp": false
+    },
+    {
+     "n": "addOneHour",
+     "k": "fn",
+     "l": 31,
+     "exp": false
+    },
+    {
+     "n": "fieldCell",
+     "k": "fn",
+     "l": 37,
+     "exp": false
+    },
+    {
+     "n": "sectionBanner",
+     "k": "fn",
+     "l": 45,
+     "exp": false
+    },
+    {
+     "n": "roleFor",
+     "k": "fn",
+     "l": 49,
+     "exp": false
+    },
+    {
+     "n": "wrapBlock",
+     "k": "fn",
+     "l": 61,
+     "exp": false
+    },
+    {
+     "n": "buildActaBlocks",
+     "k": "fn",
+     "l": 71,
+     "exp": false
+    },
+    {
+     "n": "waitForImages",
+     "k": "fn",
+     "l": 226,
+     "exp": false
+    },
+    {
+     "n": "captureBlock",
+     "k": "fn",
+     "l": 240,
+     "exp": false
+    },
+    {
+     "n": "renderBlocksToPdf",
+     "k": "fn",
+     "l": 263,
+     "exp": false
+    },
+    {
+     "n": "generateMeetingActaPdf",
+     "k": "fn",
+     "l": 307,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/lib/charts.ts",
+   "ruta": "src/lib/charts.ts",
+   "modulo": "m:lib",
+   "lenguaje": "typescript",
+   "lineas": 31,
+   "tokens": 364,
+   "complejidad": 1,
+   "resumen": "Helpers SVG compartidos para los donuts de la app (antes vivían solo",
+   "simbolos": [
+    {
+     "n": "polarToCartesian",
+     "k": "fn",
+     "l": 4,
+     "exp": true
+    },
+    {
+     "n": "donutSlicePath",
+     "k": "fn",
+     "l": 9,
+     "exp": true
+    },
+    {
+     "n": "SLICE_COLORS",
+     "k": "var",
+     "l": 24,
+     "exp": false
+    },
+    {
+     "n": "colorForIndex",
+     "k": "fn",
+     "l": 29,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/lib/csv.ts",
+   "ruta": "src/lib/csv.ts",
+   "modulo": "m:lib",
+   "lenguaje": "typescript",
+   "lineas": 79,
+   "tokens": 572,
+   "complejidad": 11,
+   "simbolos": [
+    {
+     "n": "CSV_HEADERS",
+     "k": "var",
+     "l": 3,
+     "exp": false
+    },
+    {
+     "n": "escapeCsvCell",
+     "k": "fn",
+     "l": 16,
+     "exp": false
+    },
+    {
+     "n": "downloadCsv",
+     "k": "fn",
+     "l": 29,
+     "exp": false
+    },
+    {
+     "n": "exportProjectsCsv",
+     "k": "fn",
+     "l": 43,
+     "exp": true
+    },
+    {
+     "n": "downloadCsvTemplate",
+     "k": "fn",
+     "l": 62,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/lib/pdf.ts",
+   "ruta": "src/lib/pdf.ts",
+   "modulo": "m:lib",
+   "lenguaje": "typescript",
+   "lineas": 162,
+   "tokens": 1968,
+   "complejidad": 18,
+   "simbolos": [
+    {
+     "n": "PDF_C",
+     "k": "var",
+     "l": 7,
+     "exp": false
+    },
+    {
+     "n": "CONTENT_W",
+     "k": "var",
+     "l": 14,
+     "exp": false
+    },
+    {
+     "n": "MARGIN",
+     "k": "var",
+     "l": 14,
+     "exp": false
+    },
+    {
+     "n": "PAGE_H",
+     "k": "var",
+     "l": 14,
+     "exp": false
+    },
+    {
+     "n": "PAGE_W",
+     "k": "var",
+     "l": 14,
+     "exp": false
+    },
+    {
+     "n": "trunc",
+     "k": "fn",
+     "l": 16,
+     "exp": false
+    },
+    {
+     "n": "nowStr",
+     "k": "fn",
+     "l": 21,
+     "exp": false
+    },
+    {
+     "n": "pdfHeader",
+     "k": "fn",
+     "l": 27,
+     "exp": false
+    },
+    {
+     "n": "pdfCheckPage",
+     "k": "fn",
+     "l": 41,
+     "exp": false
+    },
+    {
+     "n": "pdfSectionTitle",
+     "k": "fn",
+     "l": 45,
+     "exp": false
+    },
+    {
+     "n": "pdfParagraph",
+     "k": "fn",
+     "l": 53,
+     "exp": false
+    },
+    {
+     "n": "pdfTableHeader",
+     "k": "fn",
+     "l": 60,
+     "exp": false
+    },
+    {
+     "n": "pdfTableRow",
+     "k": "fn",
+     "l": 67,
+     "exp": false
+    },
+    {
+     "n": "pdfChecklistWithLog",
+     "k": "fn",
+     "l": 75,
+     "exp": false
+    },
+    {
+     "n": "pdfFooterAll",
+     "k": "fn",
+     "l": 108,
+     "exp": false
+    },
+    {
+     "n": "generateProjectReportPdf",
+     "k": "fn",
+     "l": 118,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/lib/projectImport.ts",
+   "ruta": "src/lib/projectImport.ts",
+   "modulo": "m:lib",
+   "lenguaje": "typescript",
+   "lineas": 86,
+   "tokens": 1145,
+   "complejidad": 12,
+   "simbolos": [
+    {
+     "n": "HEADERS",
+     "k": "var",
+     "l": 6,
+     "exp": false
+    },
+    {
+     "n": "ProjectImportRow",
+     "k": "tipo",
+     "l": 13,
+     "exp": true
+    },
+    {
+     "n": "downloadProjectImportTemplate",
+     "k": "fn",
+     "l": 24,
+     "exp": true
+    },
+    {
+     "n": "splitEmails",
+     "k": "fn",
+     "l": 56,
+     "exp": false
+    },
+    {
+     "n": "parseProjectImportFile",
+     "k": "fn",
+     "l": 67,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/lib/services.ts",
+   "ruta": "src/lib/services.ts",
+   "modulo": "m:lib",
+   "lenguaje": "typescript",
+   "lineas": 717,
+   "tokens": 8288,
+   "complejidad": 37,
+   "simbolos": [
+    {
+     "n": "PROJECT_SELECT",
+     "k": "var",
+     "l": 11,
+     "exp": false
+    },
+    {
+     "n": "MEETING_SELECT",
+     "k": "var",
+     "l": 39,
+     "exp": false
+    },
+    {
+     "n": "normalizeProject",
+     "k": "fn",
+     "l": 45,
+     "exp": false
+    },
+    {
+     "n": "throwIfError",
+     "k": "fn",
+     "l": 62,
+     "exp": false
+    },
+    {
+     "n": "extractFunctionErrorMessage",
+     "k": "fn",
+     "l": 70,
+     "exp": false
+    },
+    {
+     "n": "throwFunctionError",
+     "k": "fn",
+     "l": 87,
+     "exp": false
+    },
+    {
+     "n": "ProjectsApi",
+     "k": "var",
+     "l": 93,
+     "exp": true
+    },
+    {
+     "n": "SignStatus",
+     "k": "tipo",
+     "l": 238,
+     "exp": true
+    },
+    {
+     "n": "MeetingsApi",
+     "k": "var",
+     "l": 252,
+     "exp": true
+    },
+    {
+     "n": "ActasApi",
+     "k": "var",
+     "l": 405,
+     "exp": true
+    },
+    {
+     "n": "DailyNotesApi",
+     "k": "var",
+     "l": 424,
+     "exp": true
+    },
+    {
+     "n": "DirectoryUser",
+     "k": "tipo",
+     "l": 446,
+     "exp": true
+    },
+    {
+     "n": "DirectoryApi",
+     "k": "var",
+     "l": 452,
+     "exp": true
+    },
+    {
+     "n": "AuditApi",
+     "k": "var",
+     "l": 463,
+     "exp": true
+    },
+    {
+     "n": "ProvidersApi",
+     "k": "var",
+     "l": 493,
+     "exp": true
+    },
+    {
+     "n": "ProfilesApi",
+     "k": "var",
+     "l": 514,
+     "exp": true
+    },
+    {
+     "n": "AdminCreatedUser",
+     "k": "tipo",
+     "l": 543,
+     "exp": true
+    },
+    {
+     "n": "UsersAdminApi",
+     "k": "var",
+     "l": 558,
+     "exp": true
+    },
+    {
+     "n": "AuthApi",
+     "k": "var",
+     "l": 595,
+     "exp": true
+    },
+    {
+     "n": "WeeklyProgressApi",
+     "k": "var",
+     "l": 607,
+     "exp": true
+    },
+    {
+     "n": "PhasesApi",
+     "k": "var",
+     "l": 661,
+     "exp": true
+    },
+    {
+     "n": "PHASE_TASK_SELECT",
+     "k": "var",
+     "l": 689,
+     "exp": false
+    },
+    {
+     "n": "normalizePhaseTask",
+     "k": "fn",
+     "l": 693,
+     "exp": false
+    },
+    {
+     "n": "PhaseTasksApi",
+     "k": "var",
+     "l": 707,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/lib/site.ts",
+   "ruta": "src/lib/site.ts",
+   "modulo": "m:lib",
+   "lenguaje": "typescript",
+   "lineas": 5,
+   "tokens": 120,
+   "complejidad": 1,
+   "resumen": "URL pública de la app en producción. Se usa para armar cualquier enlace",
+   "simbolos": [
+    {
+     "n": "SITE_URL",
+     "k": "var",
+     "l": 5,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/lib/supabase.ts",
+   "ruta": "src/lib/supabase.ts",
+   "modulo": "m:lib",
+   "lenguaje": "typescript",
+   "lineas": 13,
+   "tokens": 117,
+   "complejidad": 2,
+   "simbolos": [
+    {
+     "n": "url",
+     "k": "var",
+     "l": 3,
+     "exp": false
+    },
+    {
+     "n": "anonKey",
+     "k": "var",
+     "l": 4,
+     "exp": false
+    },
+    {
+     "n": "supabase",
+     "k": "var",
+     "l": 13,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/main.tsx",
+   "ruta": "src/main.tsx",
+   "modulo": "m:context",
+   "lenguaje": "typescript",
+   "lineas": 19,
+   "tokens": 163,
+   "complejidad": 0,
+   "simbolos": [],
+   "prueba": false,
+   "entrada": true
+  },
+  {
+   "id": "f:src/pages/ClientPortal.tsx",
+   "ruta": "src/pages/ClientPortal.tsx",
+   "modulo": "m:pages",
+   "lenguaje": "typescript",
+   "lineas": 180,
+   "tokens": 1969,
+   "complejidad": 22,
+   "simbolos": [
+    {
+     "n": "ProjectWithMeetings",
+     "k": "tipo",
+     "l": 7,
+     "exp": false
+    },
+    {
+     "n": "ClientPortal",
+     "k": "fn",
+     "l": 16,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 16,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/pages/ForceChangePassword.tsx",
+   "ruta": "src/pages/ForceChangePassword.tsx",
+   "modulo": "m:pages",
+   "lenguaje": "typescript",
+   "lineas": 79,
+   "tokens": 754,
+   "complejidad": 7,
+   "simbolos": [
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 9,
+     "exp": true
+    },
+    {
+     "n": "ForceChangePassword",
+     "k": "fn",
+     "l": 9,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/pages/Login.tsx",
+   "ruta": "src/pages/Login.tsx",
+   "modulo": "m:pages",
+   "lenguaje": "typescript",
+   "lineas": 144,
+   "tokens": 1598,
+   "complejidad": 9,
+   "simbolos": [
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 6,
+     "exp": true
+    },
+    {
+     "n": "Login",
+     "k": "fn",
+     "l": 6,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/pages/ProjectDetail.tsx",
+   "ruta": "src/pages/ProjectDetail.tsx",
+   "modulo": "m:pages",
+   "lenguaje": "typescript",
+   "lineas": 213,
+   "tokens": 2283,
+   "complejidad": 14,
+   "simbolos": [
+    {
+     "n": "DELAY_TONE",
+     "k": "var",
+     "l": 21,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 25,
+     "exp": true
+    },
+    {
+     "n": "ProjectDetail",
+     "k": "fn",
+     "l": 25,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/pages/ProjectsList.tsx",
+   "ruta": "src/pages/ProjectsList.tsx",
+   "modulo": "m:pages",
+   "lenguaje": "typescript",
+   "lineas": 681,
+   "tokens": 8522,
+   "complejidad": 120,
+   "simbolos": [
+    {
+     "n": "ACTIVE_STATES",
+     "k": "var",
+     "l": 17,
+     "exp": false
+    },
+    {
+     "n": "DELAY_TONE",
+     "k": "var",
+     "l": 19,
+     "exp": false
+    },
+    {
+     "n": "projectSchedule",
+     "k": "fn",
+     "l": 28,
+     "exp": false
+    },
+    {
+     "n": "ActorForm",
+     "k": "tipo",
+     "l": 39,
+     "exp": false
+    },
+    {
+     "n": "EMPTY_FORM",
+     "k": "var",
+     "l": 48,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 50,
+     "exp": true
+    },
+    {
+     "n": "ProjectsList",
+     "k": "fn",
+     "l": 50,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/pages/ProjectWeeklyProgress.tsx",
+   "ruta": "src/pages/ProjectWeeklyProgress.tsx",
+   "modulo": "m:pages",
+   "lenguaje": "typescript",
+   "lineas": 66,
+   "tokens": 562,
+   "complejidad": 8,
+   "simbolos": [
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 12,
+     "exp": true
+    },
+    {
+     "n": "ProjectWeeklyProgress",
+     "k": "fn",
+     "l": 12,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/pages/ResetPassword.tsx",
+   "ruta": "src/pages/ResetPassword.tsx",
+   "modulo": "m:pages",
+   "lenguaje": "typescript",
+   "lineas": 107,
+   "tokens": 1131,
+   "complejidad": 13,
+   "simbolos": [
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 9,
+     "exp": true
+    },
+    {
+     "n": "ResetPassword",
+     "k": "fn",
+     "l": 9,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/pages/SignPage.tsx",
+   "ruta": "src/pages/SignPage.tsx",
+   "modulo": "m:pages",
+   "lenguaje": "typescript",
+   "lineas": 231,
+   "tokens": 2349,
+   "complejidad": 29,
+   "simbolos": [
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 5,
+     "exp": true
+    },
+    {
+     "n": "SignPage",
+     "k": "fn",
+     "l": 5,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/pages/TimelinePage.tsx",
+   "ruta": "src/pages/TimelinePage.tsx",
+   "modulo": "m:pages",
+   "lenguaje": "typescript",
+   "lineas": 201,
+   "tokens": 2276,
+   "complejidad": 24,
+   "simbolos": [
+    {
+     "n": "TimelineEntry",
+     "k": "tipo",
+     "l": 8,
+     "exp": false
+    },
+    {
+     "n": "MONTH_LABELS",
+     "k": "var",
+     "l": 10,
+     "exp": false
+    },
+    {
+     "n": "DAY_LABELS",
+     "k": "var",
+     "l": 14,
+     "exp": false
+    },
+    {
+     "n": "pad2",
+     "k": "fn",
+     "l": 15,
+     "exp": false
+    },
+    {
+     "n": "ACTION_LABEL",
+     "k": "var",
+     "l": 17,
+     "exp": false
+    },
+    {
+     "n": "isoDate",
+     "k": "fn",
+     "l": 25,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 29,
+     "exp": true
+    },
+    {
+     "n": "TimelinePage",
+     "k": "fn",
+     "l": 29,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/pages/ToolsPage.tsx",
+   "ruta": "src/pages/ToolsPage.tsx",
+   "modulo": "m:pages",
+   "lenguaje": "typescript",
+   "lineas": 310,
+   "tokens": 3464,
+   "complejidad": 44,
+   "simbolos": [
+    {
+     "n": "ManagedRole",
+     "k": "tipo",
+     "l": 11,
+     "exp": false
+    },
+    {
+     "n": "ROLE_META",
+     "k": "var",
+     "l": 13,
+     "exp": false
+    },
+    {
+     "n": "UserRoleSection",
+     "k": "fn",
+     "l": 37,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 261,
+     "exp": true
+    },
+    {
+     "n": "ToolsPage",
+     "k": "fn",
+     "l": 261,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/pages/WeeklyProgressDashboard.tsx",
+   "ruta": "src/pages/WeeklyProgressDashboard.tsx",
+   "modulo": "m:pages",
+   "lenguaje": "typescript",
+   "lineas": 110,
+   "tokens": 1130,
+   "complejidad": 14,
+   "simbolos": [
+    {
+     "n": "indicatorTone",
+     "k": "fn",
+     "l": 9,
+     "exp": false
+    },
+    {
+     "n": "default",
+     "k": "fn",
+     "l": 15,
+     "exp": true
+    },
+    {
+     "n": "WeeklyProgressDashboard",
+     "k": "fn",
+     "l": 15,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:src/types/domain.ts",
+   "ruta": "src/types/domain.ts",
+   "modulo": "m:comun",
+   "lenguaje": "typescript",
+   "lineas": 369,
+   "tokens": 3102,
+   "complejidad": 16,
+   "simbolos": [
+    {
+     "n": "UserRole",
+     "k": "tipo",
+     "l": 1,
+     "exp": true
+    },
+    {
+     "n": "ProjectStatus",
+     "k": "tipo",
+     "l": 2,
+     "exp": true
+    },
+    {
+     "n": "MeetingState",
+     "k": "tipo",
+     "l": 3,
+     "exp": true
+    },
+    {
+     "n": "Profile",
+     "k": "tipo",
+     "l": 5,
+     "exp": true
+    },
+    {
+     "n": "ProfileLite",
+     "k": "tipo",
+     "l": 15,
+     "exp": true
+    },
+    {
+     "n": "ProjectPerson",
+     "k": "tipo",
+     "l": 26,
+     "exp": true
+    },
+    {
+     "n": "ACTOR_ROLE_LABEL",
+     "k": "var",
+     "l": 31,
+     "exp": true
+    },
+    {
+     "n": "ItemLog",
+     "k": "tipo",
+     "l": 39,
+     "exp": true
+    },
+    {
+     "n": "ChecklistItem",
+     "k": "tipo",
+     "l": 49,
+     "exp": true
+    },
+    {
+     "n": "Section",
+     "k": "tipo",
+     "l": 60,
+     "exp": true
+    },
+    {
+     "n": "Stats",
+     "k": "tipo",
+     "l": 70,
+     "exp": true
+    },
+    {
+     "n": "Project",
+     "k": "tipo",
+     "l": 78,
+     "exp": true
+    },
+    {
+     "n": "DailyNote",
+     "k": "tipo",
+     "l": 104,
+     "exp": true
+    },
+    {
+     "n": "Provider",
+     "k": "tipo",
+     "l": 113,
+     "exp": true
+    },
+    {
+     "n": "PhaseKey",
+     "k": "tipo",
+     "l": 118,
+     "exp": true
+    },
+    {
+     "n": "QaStatus",
+     "k": "tipo",
+     "l": 126,
+     "exp": true
+    },
+    {
+     "n": "QA_STATUS_META",
+     "k": "var",
+     "l": 128,
+     "exp": true
+    },
+    {
+     "n": "ProjectPhase",
+     "k": "tipo",
+     "l": 134,
+     "exp": true
+    },
+    {
+     "n": "ProjectPhaseSummary",
+     "k": "tipo",
+     "l": 149,
+     "exp": true
+    },
+    {
+     "n": "PhaseTask",
+     "k": "tipo",
+     "l": 160,
+     "exp": true
+    },
+    {
+     "n": "DelayStatus",
+     "k": "tipo",
+     "l": 173,
+     "exp": true
+    },
+    {
+     "n": "DELAY_STATUS_META",
+     "k": "var",
+     "l": 175,
+     "exp": true
+    },
+    {
+     "n": "taskExpectedPct",
+     "k": "fn",
+     "l": 185,
+     "exp": true
+    },
+    {
+     "n": "taskDelayStatus",
+     "k": "fn",
+     "l": 199,
+     "exp": true
+    },
+    {
+     "n": "worstDelayStatus",
+     "k": "fn",
+     "l": 212,
+     "exp": true
+    },
+    {
+     "n": "Participant",
+     "k": "tipo",
+     "l": 219,
+     "exp": true
+    },
+    {
+     "n": "Compromiso",
+     "k": "tipo",
+     "l": 231,
+     "exp": true
+    },
+    {
+     "n": "Meeting",
+     "k": "tipo",
+     "l": 237,
+     "exp": true
+    },
+    {
+     "n": "AuditLogEntry",
+     "k": "tipo",
+     "l": 253,
+     "exp": true
+    },
+    {
+     "n": "STATUS_META",
+     "k": "var",
+     "l": 264,
+     "exp": true
+    },
+    {
+     "n": "MEETING_STATE_META",
+     "k": "var",
+     "l": 271,
+     "exp": true
+    },
+    {
+     "n": "PERCENT_OPTIONS",
+     "k": "var",
+     "l": 278,
+     "exp": true
+    },
+    {
+     "n": "bandOf",
+     "k": "fn",
+     "l": 280,
+     "exp": true
+    },
+    {
+     "n": "phaseEndDate",
+     "k": "fn",
+     "l": 284,
+     "exp": true
+    },
+    {
+     "n": "daysBetween",
+     "k": "fn",
+     "l": 292,
+     "exp": true
+    },
+    {
+     "n": "computeItemStats",
+     "k": "fn",
+     "l": 298,
+     "exp": true
+    },
+    {
+     "n": "computeProjectStats",
+     "k": "fn",
+     "l": 307,
+     "exp": true
+    },
+    {
+     "n": "WeeklyProgressEntry",
+     "k": "tipo",
+     "l": 314,
+     "exp": true
+    },
+    {
+     "n": "WeeklyProgressWeek",
+     "k": "tipo",
+     "l": 323,
+     "exp": true
+    },
+    {
+     "n": "WeeklyProgressDetail",
+     "k": "tipo",
+     "l": 330,
+     "exp": true
+    },
+    {
+     "n": "WeeklyProgressOverviewRow",
+     "k": "tipo",
+     "l": 341,
+     "exp": true
+    },
+    {
+     "n": "BOGOTA_OFFSET_MS",
+     "k": "var",
+     "l": 353,
+     "exp": false
+    },
+    {
+     "n": "currentWeekWindow",
+     "k": "fn",
+     "l": 358,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:supabase/functions/_shared/graph.ts",
+   "ruta": "supabase/functions/_shared/graph.ts",
+   "modulo": "m:comun",
+   "lenguaje": "typescript",
+   "lineas": 76,
+   "tokens": 837,
+   "complejidad": 9,
+   "resumen": "Cliente mínimo de Microsoft Graph (OAuth2 client-credentials) para mandar",
+   "simbolos": [
+    {
+     "n": "MailMessage",
+     "k": "tipo",
+     "l": 13,
+     "exp": true
+    },
+    {
+     "n": "cachedToken",
+     "k": "var",
+     "l": 19,
+     "exp": false
+    },
+    {
+     "n": "getGraphToken",
+     "k": "fn",
+     "l": 21,
+     "exp": false
+    },
+    {
+     "n": "sendMail",
+     "k": "fn",
+     "l": 56,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": false
+  },
+  {
+   "id": "f:supabase/functions/admin-manage-user/index.ts",
+   "ruta": "supabase/functions/admin-manage-user/index.ts",
+   "modulo": "m:comun",
+   "lenguaje": "typescript",
+   "lineas": 190,
+   "tokens": 2145,
+   "complejidad": 36,
+   "resumen": "Crea/edita/elimina cuentas de \"Persona asignada\" (desarrollador) y",
+   "simbolos": [
+    {
+     "n": "APP_URL",
+     "k": "var",
+     "l": 18,
+     "exp": false
+    },
+    {
+     "n": "CORS_HEADERS",
+     "k": "var",
+     "l": 20,
+     "exp": false
+    },
+    {
+     "n": "json",
+     "k": "fn",
+     "l": 26,
+     "exp": false
+    },
+    {
+     "n": "randomTempPassword",
+     "k": "fn",
+     "l": 33,
+     "exp": false
+    },
+    {
+     "n": "maybeSendWelcomeEmail",
+     "k": "fn",
+     "l": 42,
+     "exp": false
+    }
+   ],
+   "prueba": false,
+   "entrada": true
+  },
+  {
+   "id": "f:vite.config.ts",
+   "ruta": "vite.config.ts",
+   "modulo": "m:comun",
+   "lenguaje": "typescript",
+   "lineas": 7,
+   "tokens": 47,
+   "complejidad": 0,
+   "simbolos": [
+    {
+     "n": "default",
+     "k": "otro",
+     "l": 5,
+     "exp": true
+    }
+   ],
+   "prueba": false,
+   "entrada": true
+  }
+ ],
+ "rutas": [],
+ "modelos": [],
+ "docs": [],
+ "aristas": [
+  {
+   "t": "import",
+   "de": "f:src/App.tsx",
+   "a": "f:src/components/WeeklyProgressGate.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/App.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "useAuth"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/App.tsx",
+   "a": "f:src/pages/ClientPortal.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/App.tsx",
+   "a": "f:src/pages/ForceChangePassword.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/App.tsx",
+   "a": "f:src/pages/Login.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/App.tsx",
+   "a": "f:src/pages/ProjectDetail.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/App.tsx",
+   "a": "f:src/pages/ProjectsList.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/App.tsx",
+   "a": "f:src/pages/ProjectWeeklyProgress.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/App.tsx",
+   "a": "f:src/pages/ResetPassword.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/App.tsx",
+   "a": "f:src/pages/SignPage.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/App.tsx",
+   "a": "f:src/pages/TimelinePage.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/App.tsx",
+   "a": "f:src/pages/ToolsPage.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/App.tsx",
+   "a": "f:src/pages/WeeklyProgressDashboard.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/AppShell.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "useAuth"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/AppShell.tsx",
+   "a": "f:src/context/ShellChromeContext.tsx",
+   "simbolos": [
+    "useSidebarPanel"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/AuditHistoryPanel.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "AuditApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/AuditHistoryPanel.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "AuditLogEntry"
+   ],
+   "tipo": true
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ChecklistSectionCard.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "ProjectsApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ChecklistSectionCard.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "ChecklistItem",
+    "Section",
+    "bandOf"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/DeliveryPanel.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "ProjectsApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/DeliveryPanel.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "Project",
+    "STATUS_META",
+    "daysBetween"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/DirectorySearch.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "DirectoryApi",
+    "DirectoryUser"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/GlobalGantt.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "DELAY_STATUS_META",
+    "DelayStatus",
+    "Project",
+    "taskDelayStatus"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/MeetingsCalendar.tsx",
+   "a": "f:src/components/DirectorySearch.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/MeetingsCalendar.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "useAuth"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/MeetingsCalendar.tsx",
+   "a": "f:src/lib/acta.ts",
+   "simbolos": [
+    "generateMeetingActaPdf"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/MeetingsCalendar.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "ActasApi",
+    "DailyNotesApi",
+    "DirectoryUser",
+    "MeetingsApi",
+    "ProfilesApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/MeetingsCalendar.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "Compromiso",
+    "DailyNote",
+    "MEETING_STATE_META",
+    "Meeting",
+    "MeetingState",
+    "Participant",
+    "Project"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/MultiProfilePicker.tsx",
+   "a": "f:src/components/DirectorySearch.tsx",
+   "simbolos": [
+    "initials"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/MultiProfilePicker.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "ProfilesApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/MultiProfilePicker.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "ACTOR_ROLE_LABEL",
+    "ProfileLite",
+    "UserRole"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ParticipationChart.tsx",
+   "a": "f:src/lib/charts.ts",
+   "simbolos": [
+    "colorForIndex",
+    "donutSlicePath"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ParticipationChart.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "PhaseTask"
+   ],
+   "tipo": true
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/PhaseProgressChart.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "PhasesApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/PhaseProgressChart.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "ProjectPhase"
+   ],
+   "tipo": true
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ProfilePicker.tsx",
+   "a": "f:src/components/DirectorySearch.tsx",
+   "simbolos": [
+    "initials"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ProfilePicker.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "ProfilesApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ProfilePicker.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "ACTOR_ROLE_LABEL",
+    "ProfileLite",
+    "UserRole"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ProjectCalendar.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "PhaseTask",
+    "ProjectPhase",
+    "phaseEndDate"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ProjectImportModal.tsx",
+   "a": "f:src/lib/projectImport.ts",
+   "simbolos": [
+    "ProjectImportRow",
+    "downloadProjectImportTemplate",
+    "parseProjectImportFile"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ProjectImportModal.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "ProfilesApi",
+    "ProjectsApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ProjectImportModal.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "ProfileLite"
+   ],
+   "tipo": true
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ProjectsDashboard.tsx",
+   "a": "f:src/lib/charts.ts",
+   "simbolos": [
+    "donutSlicePath"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ProjectsDashboard.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "Project",
+    "ProjectStatus",
+    "STATUS_META"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ProvidersPanel.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "ProvidersApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/ProvidersPanel.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "Provider"
+   ],
+   "tipo": true
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/RoadmapPhases.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "PhasesApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/RoadmapPhases.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "PhaseTask",
+    "ProjectPhase",
+    "QA_STATUS_META",
+    "taskDelayStatus"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/WeeklyProgressDetail.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "WeeklyProgressApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/WeeklyProgressDetail.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "WeeklyProgressDetail",
+    "WeeklyProgressWeek"
+   ],
+   "tipo": true
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/WeeklyProgressGate.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "useAuth"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/WeeklyProgressGate.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "WeeklyProgressApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/WeeklyProgressGate.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "WeeklyProgressOverviewRow"
+   ],
+   "tipo": true
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/WeeklyProgressPanel.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "useAuth"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/WeeklyProgressPanel.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "WeeklyProgressApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/components/WeeklyProgressPanel.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "WeeklyProgressEntry",
+    "currentWeekWindow"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/context/AuthContext.tsx",
+   "a": "f:src/lib/site.ts",
+   "simbolos": [
+    "SITE_URL"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/context/AuthContext.tsx",
+   "a": "f:src/lib/supabase.ts",
+   "simbolos": [
+    "supabase"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/context/AuthContext.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "Profile"
+   ],
+   "tipo": true
+  },
+  {
+   "t": "import",
+   "de": "f:src/lib/acta.ts",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "Meeting",
+    "Project",
+    "STATUS_META"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/lib/csv.ts",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "Project",
+    "STATUS_META"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/lib/pdf.ts",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "MEETING_STATE_META",
+    "Meeting",
+    "Project",
+    "STATUS_META",
+    "Section"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/lib/services.ts",
+   "a": "f:src/lib/site.ts",
+   "simbolos": [
+    "SITE_URL"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/lib/services.ts",
+   "a": "f:src/lib/supabase.ts",
+   "simbolos": [
+    "supabase"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/lib/services.ts",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "AuditLogEntry",
+    "Compromiso",
+    "DailyNote",
+    "Meeting",
+    "MeetingState",
+    "PhaseTask",
+    "ProfileLite",
+    "Project",
+    "ProjectPhase",
+    "ProjectStatus",
+    "Provider",
+    "UserRole",
+    "WeeklyProgressDetail",
+    "WeeklyProgressEntry",
+    "WeeklyProgressOverviewRow",
+    "computeProjectStats"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/main.tsx",
+   "a": "f:src/App.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/main.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "AuthProvider"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/main.tsx",
+   "a": "f:src/context/ShellChromeContext.tsx",
+   "simbolos": [
+    "ShellChromeProvider"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ClientPortal.tsx",
+   "a": "f:src/components/AppShell.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ClientPortal.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "useAuth"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ClientPortal.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "ActasApi",
+    "MeetingsApi",
+    "ProjectsApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ClientPortal.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "Meeting",
+    "Project"
+   ],
+   "tipo": true
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ForceChangePassword.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "useAuth"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ForceChangePassword.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "AuthApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ForceChangePassword.tsx",
+   "a": "f:src/lib/supabase.ts",
+   "simbolos": [
+    "supabase"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/Login.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "useAuth"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/components/AppShell.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/components/AuditHistoryPanel.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/components/ChecklistSectionCard.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/components/DeliveryPanel.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/components/MeetingsCalendar.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/components/ParticipationChart.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/components/PhaseProgressChart.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/components/ProjectCalendar.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/components/RoadmapPhases.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "useAuth"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/context/ShellChromeContext.tsx",
+   "simbolos": [
+    "useSidebarStats"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/lib/pdf.ts",
+   "simbolos": [
+    "generateProjectReportPdf"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "DailyNotesApi",
+    "MeetingsApi",
+    "PhaseTasksApi",
+    "PhasesApi",
+    "ProjectsApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectDetail.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "DELAY_STATUS_META",
+    "DailyNote",
+    "Meeting",
+    "PhaseTask",
+    "Project",
+    "ProjectPhase",
+    "ProjectStatus",
+    "STATUS_META",
+    "phaseEndDate",
+    "taskDelayStatus",
+    "worstDelayStatus"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectsList.tsx",
+   "a": "f:src/components/AppShell.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectsList.tsx",
+   "a": "f:src/components/MultiProfilePicker.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectsList.tsx",
+   "a": "f:src/components/ProfilePicker.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectsList.tsx",
+   "a": "f:src/components/ProjectImportModal.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectsList.tsx",
+   "a": "f:src/components/ProjectsDashboard.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectsList.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "useAuth"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectsList.tsx",
+   "a": "f:src/context/ShellChromeContext.tsx",
+   "simbolos": [
+    "useDashboardToggle",
+    "useSidebarStats"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectsList.tsx",
+   "a": "f:src/lib/csv.ts",
+   "simbolos": [
+    "downloadCsvTemplate",
+    "exportProjectsCsv"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectsList.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "ProjectsApi",
+    "ProvidersApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectsList.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "DELAY_STATUS_META",
+    "DelayStatus",
+    "ProfileLite",
+    "Project",
+    "ProjectStatus",
+    "STATUS_META",
+    "taskDelayStatus",
+    "taskExpectedPct"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectWeeklyProgress.tsx",
+   "a": "f:src/components/AppShell.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectWeeklyProgress.tsx",
+   "a": "f:src/components/WeeklyProgressPanel.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectWeeklyProgress.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "useAuth"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectWeeklyProgress.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "ProjectsApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ProjectWeeklyProgress.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "Project"
+   ],
+   "tipo": true
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ResetPassword.tsx",
+   "a": "f:src/lib/supabase.ts",
+   "simbolos": [
+    "supabase"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/SignPage.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "MeetingsApi",
+    "SignStatus"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/TimelinePage.tsx",
+   "a": "f:src/components/AppShell.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/TimelinePage.tsx",
+   "a": "f:src/components/GlobalGantt.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/TimelinePage.tsx",
+   "a": "f:src/context/ShellChromeContext.tsx",
+   "simbolos": [
+    "useSidebarStats"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/TimelinePage.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "AuditApi",
+    "ProjectsApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/TimelinePage.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "AuditLogEntry",
+    "Project"
+   ],
+   "tipo": true
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ToolsPage.tsx",
+   "a": "f:src/components/AppShell.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ToolsPage.tsx",
+   "a": "f:src/components/DirectorySearch.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ToolsPage.tsx",
+   "a": "f:src/components/ProvidersPanel.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ToolsPage.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "useAuth"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ToolsPage.tsx",
+   "a": "f:src/context/ShellChromeContext.tsx",
+   "simbolos": [
+    "useSidebarStats"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ToolsPage.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "DirectoryUser",
+    "UsersAdminApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/ToolsPage.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "ACTOR_ROLE_LABEL",
+    "ProfileLite"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/WeeklyProgressDashboard.tsx",
+   "a": "f:src/components/AppShell.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/WeeklyProgressDashboard.tsx",
+   "a": "f:src/components/WeeklyProgressDetail.tsx",
+   "simbolos": [
+    "default"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/WeeklyProgressDashboard.tsx",
+   "a": "f:src/context/AuthContext.tsx",
+   "simbolos": [
+    "useAuth"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/WeeklyProgressDashboard.tsx",
+   "a": "f:src/lib/services.ts",
+   "simbolos": [
+    "WeeklyProgressApi"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:src/pages/WeeklyProgressDashboard.tsx",
+   "a": "f:src/types/domain.ts",
+   "simbolos": [
+    "STATUS_META",
+    "WeeklyProgressOverviewRow"
+   ]
+  },
+  {
+   "t": "import",
+   "de": "f:supabase/functions/admin-manage-user/index.ts",
+   "a": "f:supabase/functions/_shared/graph.ts",
+   "simbolos": [
+    "sendMail"
+   ]
+  }
+ ],
+ "externos": {
+  "@supabase/supabase-js": 2,
+  "@vitejs/plugin-react": 1,
+  "html2canvas": 1,
+  "https:": 1,
+  "jspdf": 2,
+  "react": 32,
+  "react-dom": 1,
+  "react-router-dom": 12,
+  "vite": 1,
+  "xlsx": 1
+ },
+ "capas": {}
+}

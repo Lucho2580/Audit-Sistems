@@ -10,6 +10,9 @@ interface AuthContextValue {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error?: string }>;
+  signInWithMicrosoft: () => Promise<{ error?: string }>;
+  linkMicrosoftAccount: () => Promise<{ error?: string }>;
+  hasMicrosoftIdentity: () => Promise<boolean>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<{ error?: string }>;
@@ -63,6 +66,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           options: { data: { full_name: fullName } },
         });
         return { error: error?.message };
+      },
+      // Flujo principal de aquí en adelante: entra con la cuenta de
+      // Microsoft del correo corporativo, sin contraseña. Redirige a
+      // login.microsoftonline.com y vuelve al mismo origen desde donde se
+      // inició (no SITE_URL: eso es para enlaces que se mandan por correo;
+      // aquí la persona ya está en la app, sea producción o localhost, y
+      // debe volver ahí mismo). Ese origen tiene que estar en Redirect URLs
+      // de Supabase o Supabase lo cambia por el Site URL. AuthProvider recoge
+      // la sesión sola al volver, vía el mismo onAuthStateChange de abajo.
+      async signInWithMicrosoft() {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'azure',
+          // Sin el scope "email", Azure no siempre manda el correo en el
+          // token y Supabase rechaza el login ("Error getting user email
+          // from external provider"). prompt=select_account: sin esto
+          // Microsoft entra directo con la cuenta que ya tenga abierta en el
+          // navegador, sin dejar elegir otra.
+          options: { redirectTo: window.location.origin, scopes: 'email', queryParams: { prompt: 'select_account' } },
+        });
+        return { error: error?.message };
+      },
+      // Para una cuenta que YA existe con contraseña (de antes del cambio a
+      // SSO): adjunta la identidad de Microsoft a esta MISMA sesión/usuario
+      // en vez de crear una cuenta nueva -- así conserva su profiles.id y
+      // todo lo que tiene asignado. Requiere "Manual linking" habilitado en
+      // Authentication > Settings del proyecto de Supabase.
+      async linkMicrosoftAccount() {
+        const { error } = await supabase.auth.linkIdentity({
+          provider: 'azure',
+          options: { redirectTo: window.location.origin, scopes: 'email', queryParams: { prompt: 'select_account' } },
+        });
+        return { error: error?.message };
+      },
+      async hasMicrosoftIdentity() {
+        const { data } = await supabase.auth.getUserIdentities();
+        return (data?.identities ?? []).some((i) => i.provider === 'azure');
       },
       async signOut() {
         // supabase-js intenta primero revocar la sesión en el servidor -- si

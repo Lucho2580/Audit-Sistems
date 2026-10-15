@@ -33,6 +33,16 @@ export default function ProjectDetail() {
   const canEdit = profile?.role === 'admin' || profile?.role === 'superadmin';
   const canEditPercent = canEdit || profile?.role === 'desarrollador';
   const isQaReviewer = profile?.role === 'qa';
+  // Aprobar/rechazar reportes de seguimiento: rol QA o cuenta autorizada
+  // aparte (item_log_reviewers). Lo decide la base, no el rol en pantalla.
+  const [canReviewLogs, setCanReviewLogs] = useState(false);
+  useEffect(() => {
+    let active = true;
+    ProjectsApi.canReviewItemLogs()
+      .then((ok) => { if (active) setCanReviewLogs(ok); })
+      .catch(() => { if (active) setCanReviewLogs(false); });
+    return () => { active = false; };
+  }, [profile?.id]);
 
   const [project, setProject] = useState<Project | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -173,6 +183,7 @@ export default function ProjectDetail() {
             filterStatus={filterStatus}
             canEdit={canEdit || isQaReviewer}
             canEditPercent={canEditPercent || isQaReviewer}
+            canReview={canReviewLogs}
             minDate={project.startDate}
             maxDate={project.deadlineDate}
             onChanged={load}

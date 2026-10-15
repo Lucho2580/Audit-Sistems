@@ -20,6 +20,15 @@ export interface ProfileLite {
   mustChangePassword?: boolean;
 }
 
+// Cuenta invitada por un admin que todavía no ha iniciado sesión con
+// Microsoft ni una sola vez -- ver pending_invites/provision_profile_from_invite.
+export interface PendingInvite {
+  email: string;
+  fullName: string;
+  role: UserRole;
+  createdAt: string;
+}
+
 // Forma compartida por los actores del proyecto que pueden ser varios
 // (jefes, clientes) -- a diferencia de responsable/proveedor, que son un
 // solo actor.
@@ -44,6 +53,9 @@ export interface ItemLog {
   qaApproved: boolean;
   qaApprovedByNombre: string | null;
   qaApprovedAt: string | null;
+  qaRejectedAt: string | null;
+  qaRejectedByNombre: string | null;
+  qaRejectionReason: string | null;
 }
 
 export interface ChecklistItem {

@@ -1,50 +1,66 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import laViandaBlanco from '../assets/lavianda-blanco.png';
 
+// Logo oficial de Microsoft (cuatro cuadros) -- es la señal que la gente
+// reconoce en un login corporativo, así que va en el botón aunque el resto
+// de la pantalla use los colores de La Vianda.
+function MicrosoftLogo() {
+  return (
+    <svg className="ms-logo" width="18" height="18" viewBox="0 0 21 21" aria-hidden="true">
+      <rect x="1" y="1" width="9" height="9" fill="#F25022" />
+      <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
+      <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
+      <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
+    </svg>
+  );
+}
+
 export default function Login() {
-  const { session, signIn, requestPasswordReset } = useAuth();
+  const { session, signInWithMicrosoft } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  const [mode, setMode] = useState<'login' | 'forgot'>('login');
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotError, setForgotError] = useState<string | null>(null);
-  const [forgotSent, setForgotSent] = useState(false);
-  const [forgotBusy, setForgotBusy] = useState(false);
 
   useEffect(() => {
     if (session) navigate('/', { replace: true });
   }, [session, navigate]);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  // Si Microsoft/Supabase rechaza el inicio de sesión (p. ej. el trigger
+  // "cuenta no autorizada" de pending_invites), vuelve acá con el error en
+  // el hash o el query string en vez de completar la sesión -- sin esto,
+  // la persona solo vería que "no pasó nada".
+  useEffect(() => {
+    const params = new URLSearchParams(
+      window.location.hash ? window.location.hash.slice(1) : window.location.search,
+    );
+    const desc = params.get('error_description') || params.get('error');
+    if (desc) {
+      const message = decodeURIComponent(desc.replace(/\+/g, ' '));
+      // Supabase Auth no deja pasar el texto de la excepción del trigger
+      // reject_unauthorized_signup: lo reemplaza por este genérico. En la
+      // práctica la única causa es una cuenta sin invitación.
+      setError(
+        /database error saving new user/i.test(message)
+          ? 'Esta cuenta no está autorizada en el Sistema de Auditoría. Pide que Dirección de Sistemas te invite primero.'
+          : message,
+      );
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
+
+  async function handleMicrosoftLogin() {
     setError(null);
     setBusy(true);
-    const result = await signIn(email, password);
-    setBusy(false);
-    if (result.error) setError(result.error);
-  }
-
-  function openForgot() {
-    setMode('forgot');
-    setForgotEmail(email);
-    setForgotError(null);
-    setForgotSent(false);
-  }
-
-  async function handleForgotSubmit(e: FormEvent) {
-    e.preventDefault();
-    setForgotError(null);
-    setForgotBusy(true);
-    const result = await requestPasswordReset(forgotEmail.trim());
-    setForgotBusy(false);
-    if (result.error) setForgotError(result.error);
-    else setForgotSent(true);
+    const result = await signInWithMicrosoft();
+    if (result.error) {
+      setError(result.error);
+      setBusy(false);
+    }
+    // Si no hay error, el navegador ya está siendo redirigido a Microsoft --
+    // no hace falta (ni conviene) limpiar busy, para que el botón se vea
+    // deshabilitado mientras dura la redirección.
   }
 
   return (
@@ -63,81 +79,33 @@ export default function Login() {
       </div>
 
       <div className="login-form-panel">
-        {mode === 'login' ? (
-          <div className="login-form">
+        <div className="login-card">
+          <div className="login-card-body">
             <p className="eyebrow">Acceso restringido</p>
             <h2>Iniciar sesión</h2>
-            <div className="login-form-rule" />
-            <p className="sub">Ingresa con tu correo y contraseña para acceder al panel de auditoría.</p>
-            {error && <div className="auth-error">{error}</div>}
-            <form onSubmit={handleSubmit}>
-              <div className="auth-field">
-                <label>Correo corporativo</label>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              </div>
-              <div className="auth-field">
-                <label>Contraseña</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  minLength={6}
-                  required
-                />
-              </div>
-              <button className="btn" type="submit" disabled={busy} style={{ width: '100%' }}>
-                {busy ? 'Un momento…' : 'Entrar al panel'}
-              </button>
-            </form>
-            <div className="auth-switch">
-              <button type="button" onClick={openForgot}>¿Olvidaste tu contraseña?</button>
-            </div>
-            <div className="auth-switch">¿Sin acceso? Solicítalo a la Dirección de Sistemas.</div>
+            <p className="login-lead">
+              Entra con tu cuenta corporativa de Microsoft. No necesitas una contraseña aparte.
+            </p>
+            {error && <div className="auth-error" role="alert">{error}</div>}
+            <button className="btn btn-sso" type="button" onClick={handleMicrosoftLogin} disabled={busy}>
+              <MicrosoftLogo />
+              <span>{busy ? 'Redirigiendo a Microsoft…' : 'Continuar con Microsoft'}</span>
+            </button>
+            <ol className="login-steps">
+              <li>
+                <span className="login-step-num">1</span>
+                <span>Microsoft te pedirá elegir la cuenta: usa la de <strong>@lavianda.co</strong>.</span>
+              </li>
+              <li>
+                <span className="login-step-num">2</span>
+                <span>Al confirmar, vuelves directo al panel con tus proyectos.</span>
+              </li>
+            </ol>
           </div>
-        ) : (
-          <div className="login-form">
-            <p className="eyebrow">Recuperar acceso</p>
-            <h2>Restablecer contraseña</h2>
-            <div className="login-form-rule" />
-            {forgotSent ? (
-              <>
-                <p className="sub">
-                  Si <strong>{forgotEmail.trim()}</strong> tiene una cuenta, te llegará un correo con un
-                  enlace para definir una contraseña nueva.
-                </p>
-                <div className="auth-switch">
-                  <button type="button" onClick={() => setMode('login')}>Volver a iniciar sesión</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <p className="sub">
-                  Ingresa tu correo corporativo y te mandaremos un enlace para definir una contraseña
-                  nueva.
-                </p>
-                {forgotError && <div className="auth-error">{forgotError}</div>}
-                <form onSubmit={handleForgotSubmit}>
-                  <div className="auth-field">
-                    <label>Correo corporativo</label>
-                    <input
-                      type="email"
-                      value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      required
-                      autoFocus
-                    />
-                  </div>
-                  <button className="btn" type="submit" disabled={forgotBusy} style={{ width: '100%' }}>
-                    {forgotBusy ? 'Enviando…' : 'Enviar enlace de recuperación'}
-                  </button>
-                </form>
-                <div className="auth-switch">
-                  <button type="button" onClick={() => setMode('login')}>Volver a iniciar sesión</button>
-                </div>
-              </>
-            )}
+          <div className="login-card-foot">
+            ¿No tienes acceso? Solicítalo a la Dirección de Sistemas.
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

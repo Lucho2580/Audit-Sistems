@@ -7,6 +7,7 @@ interface Props {
   filterStatus: 'all' | 'pendiente' | 'progreso' | 'completo';
   canEdit: boolean; // agregar/eliminar checkpoints, aprobar seguimientos, notas de sección
   canEditPercent: boolean; // agregar observaciones de seguimiento (el % lo calcula el sistema)
+  canReview: boolean; // aprobar/rechazar reportes de seguimiento -- rol QA o cuenta autorizada (la base lo exige igual)
   minDate: string | null; // fecha de inicio del proyecto -- límite inferior de la fecha límite de un checkpoint
   maxDate: string | null; // fecha de entrega esperada del proyecto -- límite superior
   onChanged: () => void;
@@ -20,11 +21,15 @@ function computeStats(items: ChecklistItem[]) {
   return { total, pct };
 }
 
-export default function ChecklistSectionCard({ section, filterStatus, canEdit, canEditPercent, minDate, maxDate, onChanged }: Props) {
+export default function ChecklistSectionCard({ section, filterStatus, canEdit, canEditPercent, canReview, minDate, maxDate, onChanged }: Props) {
   const [openHistory, setOpenHistory] = useState<Set<string>>(new Set());
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [newItemText, setNewItemText] = useState('');
   const [notes, setNotes] = useState(section.notes);
+  // Reporte que QA está rechazando ahora mismo (uno a la vez) y su motivo.
+  const [rejectingLogId, setRejectingLogId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [reviewBusy, setReviewBusy] = useState(false);
 
   const stats = computeStats(section.items);
   const visibleItems = section.items.filter(
@@ -45,8 +50,39 @@ export default function ChecklistSectionCard({ section, filterStatus, canEdit, c
   }
 
   async function approveLog(logId: string) {
-    await ProjectsApi.approveItemLog(logId);
-    onChanged();
+    setReviewBusy(true);
+    try {
+      await ProjectsApi.approveItemLog(logId);
+      onChanged();
+    } catch (err) {
+      alert(`No se pudo aprobar el reporte: ${(err as Error).message}`);
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
+  function startReject(logId: string) {
+    setRejectingLogId(logId);
+    setRejectReason('');
+  }
+
+  async function confirmReject(logId: string) {
+    const reason = rejectReason.trim();
+    if (reason.length < 5) {
+      alert('Escribe el motivo del rechazo (mínimo 5 caracteres).');
+      return;
+    }
+    setReviewBusy(true);
+    try {
+      await ProjectsApi.rejectItemLog(logId, reason);
+      setRejectingLogId(null);
+      setRejectReason('');
+      onChanged();
+    } catch (err) {
+      alert(`No se pudo rechazar el reporte: ${(err as Error).message}`);
+    } finally {
+      setReviewBusy(false);
+    }
   }
 
   async function deleteItem(item: ChecklistItem) {
@@ -140,7 +176,7 @@ export default function ChecklistSectionCard({ section, filterStatus, canEdit, c
                   ) : null}
                   <span
                     className={`percent-select ${band}`}
-                    title="Automático: 0% sin seguimiento, 50% con seguimiento pendiente de QA, 100% con seguimiento aprobado"
+                    title="Automático: 0% sin seguimiento (o todo rechazado), 50% con seguimiento pendiente de QA, 100% con seguimiento aprobado"
                   >
                     {it.percent}%
                   </span>
@@ -174,14 +210,47 @@ export default function ChecklistSectionCard({ section, filterStatus, canEdit, c
                             <span className="status-pill tone-green small" title={l.qaApprovedByNombre ? `Aprobado por ${l.qaApprovedByNombre}` : undefined}>
                               Aprobado
                             </span>
+                          ) : l.qaRejectedAt ? (
+                            <span className="status-pill tone-rust small" title={l.qaRejectedByNombre ? `Rechazado por ${l.qaRejectedByNombre}` : undefined}>
+                              Rechazado
+                            </span>
                           ) : (
                             <span className="status-pill tone-gold small">Pendiente de aprobación QA</span>
                           )}
+                          {l.qaRejectedAt && l.qaRejectionReason && (
+                            <span className="log-reject-reason">
+                              <strong>Motivo del rechazo{l.qaRejectedByNombre ? ` (${l.qaRejectedByNombre})` : ''}:</strong>{' '}
+                              {l.qaRejectionReason}
+                            </span>
+                          )}
+                          {rejectingLogId === l.id && (
+                            <div className="log-reject-form">
+                              <textarea
+                                value={rejectReason}
+                                onChange={(e) => setRejectReason(e.target.value)}
+                                placeholder="¿Por qué se rechaza este reporte? La persona asignada verá este motivo."
+                                autoFocus
+                              />
+                              <div className="log-reject-form-actions">
+                                <button className="btn small danger" onClick={() => confirmReject(l.id)} disabled={reviewBusy}>
+                                  Confirmar rechazo
+                                </button>
+                                <button className="btn ghost small" onClick={() => setRejectingLogId(null)} disabled={reviewBusy}>
+                                  Cancelar
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="log-entry-actions">
-                          {canEdit && !l.qaApproved && (
-                            <button className="btn ghost small" onClick={() => approveLog(l.id)}>
+                          {canReview && !l.qaApproved && rejectingLogId !== l.id && (
+                            <button className="btn ghost small" onClick={() => approveLog(l.id)} disabled={reviewBusy}>
                               Aprobar
+                            </button>
+                          )}
+                          {canReview && !l.qaRejectedAt && rejectingLogId !== l.id && (
+                            <button className="btn danger small" onClick={() => startReject(l.id)} disabled={reviewBusy}>
+                              Rechazar
                             </button>
                           )}
                           {canEdit && (
