@@ -56,6 +56,8 @@ export interface ItemLog {
   qaRejectedAt: string | null;
   qaRejectedByNombre: string | null;
   qaRejectionReason: string | null;
+  documentPath: string | null;
+  documentName: string | null;
 }
 
 export interface ChecklistItem {
@@ -66,6 +68,9 @@ export interface ChecklistItem {
   assignedToNombre: string | null;
   dueDate: string | null;
   percent: number;
+  // Hitos estándar: evidencia de cierre y si exige documento adjunto.
+  evidence: string | null;
+  requiresDocument: boolean;
   log: ItemLog[];
 }
 
@@ -127,13 +132,9 @@ export interface Provider {
   name: string;
 }
 
-export type PhaseKey =
-  | 'levantamiento'
-  | 'diseno'
-  | 'implementacion'
-  | 'testing'
-  | 'entrega'
-  | 'fin';
+// Fases estándar de todos los proyectos (coinciden con la clave de su
+// sección de hitos): Levantamiento, Gestión y Entrega.
+export type PhaseKey = 'levantamiento' | 'gestion' | 'entrega';
 
 export type QaStatus = 'pendiente' | 'en_revision' | 'aprobada';
 
@@ -370,6 +371,8 @@ export interface WeeklyMilestoneLine {
   late: boolean; // venció en una semana anterior (se reportó como atrasado)
   qa: 'aprobado' | 'rechazado' | 'pendiente' | null;
   qaReason: string | null;
+  documentPath: string | null;
+  documentName: string | null;
 }
 
 export interface WeeklyProgressWeek {
@@ -395,6 +398,10 @@ export interface WeeklyReportFormItem {
   daysLate?: number;
   status: MilestoneReportStatus | null;
   note: string | null;
+  evidence: string | null;
+  requiresDocument: boolean;
+  documentPath: string | null;
+  documentName: string | null;
 }
 
 export interface WeeklyReportForm {

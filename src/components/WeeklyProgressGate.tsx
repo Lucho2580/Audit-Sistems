@@ -27,7 +27,8 @@ export default function WeeklyProgressGate({ children }: { children: ReactNode }
     // quedaría atrapada para siempre sin poder llegar nunca a cambiar su
     // contraseña temporal. Se deja pasar sin chequear nada hasta que ya haya
     // cambiado la contraseña.
-    if (!session || profile?.role !== 'desarrollador' || profile?.mustChangePassword) {
+    // Persona asignada: desarrollador o QA (un QA puede ser responsable de proyectos).
+    if (!session || (profile?.role !== 'desarrollador' && profile?.role !== 'qa') || profile?.mustChangePassword) {
       setChecked(true);
       setPending([]);
       return;

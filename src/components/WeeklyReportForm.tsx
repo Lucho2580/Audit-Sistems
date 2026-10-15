@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { WeeklyProgressApi } from '../lib/services';
+import { EvidenceApi, WeeklyProgressApi } from '../lib/services';
 import type { MilestoneReportStatus, WeeklyReportForm as FormData, WeeklyReportFormItem } from '../types/domain';
 
 interface Props {
@@ -28,7 +28,11 @@ function fmtRange(start: string, end: string) {
   return `${s.getDate()} al ${e.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}`;
 }
 
-type Draft = Record<string, { status: MilestoneReportStatus | null; note: string }>;
+type Draft = Record<string, {
+  status: MilestoneReportStatus | null;
+  note: string;
+  doc: { path: string; name: string } | null; // documento de evidencia ya subido
+}>;
 
 // Formulario del reporte semanal por hitos: por cada hito que vence esta
 // semana (y cada atrasado) se marca cumplido / en curso / sin avance. El % de
@@ -41,6 +45,7 @@ export default function WeeklyReportForm({ projectId, variant = 'page', allowEdi
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -50,7 +55,11 @@ export default function WeeklyReportForm({ projectId, variant = 'page', allowEdi
       setForm(data);
       const d: Draft = {};
       for (const it of [...data.weekItems, ...data.overdueItems]) {
-        d[it.itemId] = { status: it.status, note: it.note ?? '' };
+        d[it.itemId] = {
+          status: it.status,
+          note: it.note ?? '',
+          doc: it.documentPath ? { path: it.documentPath, name: it.documentName ?? 'Documento' } : null,
+        };
       }
       setDraft(d);
       setNote(data.note ?? '');
@@ -86,11 +95,27 @@ export default function WeeklyReportForm({ projectId, variant = 'page', allowEdi
   const readOnly = !form.isOpen || (!!form.submittedAt && !editing);
 
   function setStatus(itemId: string, status: MilestoneReportStatus) {
-    setDraft((d) => ({ ...d, [itemId]: { status, note: d[itemId]?.note ?? '' } }));
+    setDraft((d) => ({ ...d, [itemId]: { status, note: d[itemId]?.note ?? '', doc: d[itemId]?.doc ?? null } }));
   }
 
   function setItemNote(itemId: string, value: string) {
-    setDraft((d) => ({ ...d, [itemId]: { status: d[itemId]?.status ?? null, note: value } }));
+    setDraft((d) => ({ ...d, [itemId]: { status: d[itemId]?.status ?? null, note: value, doc: d[itemId]?.doc ?? null } }));
+  }
+
+  // El documento se sube al elegirlo (queda en <proyecto>/<hito>/) y se
+  // asocia al seguimiento de QA al enviar el reporte.
+  async function attachDocument(itemId: string, file: File | null) {
+    if (!file) return;
+    setError(null);
+    setUploading(itemId);
+    try {
+      const doc = await EvidenceApi.upload(projectId, itemId, file);
+      setDraft((d) => ({ ...d, [itemId]: { status: d[itemId]?.status ?? 'cumplido', note: d[itemId]?.note ?? '', doc } }));
+    } catch (err) {
+      setError(`No se pudo subir el documento: ${(err as Error).message}`);
+    } finally {
+      setUploading(null);
+    }
   }
 
   async function submit() {
@@ -104,6 +129,13 @@ export default function WeeklyReportForm({ projectId, variant = 'page', allowEdi
     );
     if (noNote.length) {
       setError(`Escribe el comentario de: ${noNote.map((it) => it.code).join(', ')} (qué falta o por qué no hubo avance).`);
+      return;
+    }
+    const noDoc = allActionable.filter(
+      (it) => it.requiresDocument && draft[it.itemId]?.status === 'cumplido' && !draft[it.itemId]?.doc,
+    );
+    if (noDoc.length) {
+      setError(`Adjunta el documento de evidencia de: ${noDoc.map((it) => it.code).join(', ')} (lo exige para marcarlo cumplido).`);
       return;
     }
     if (allActionable.length === 0 && !note.trim()) {
@@ -120,6 +152,8 @@ export default function WeeklyReportForm({ projectId, variant = 'page', allowEdi
           itemId: it.itemId,
           status: draft[it.itemId]!.status!,
           note: (draft[it.itemId]?.note ?? '').trim(),
+          documentPath: draft[it.itemId]?.status === 'cumplido' ? draft[it.itemId]?.doc?.path ?? null : null,
+          documentName: draft[it.itemId]?.status === 'cumplido' ? draft[it.itemId]?.doc?.name ?? null : null,
         })),
       );
       await load();
@@ -145,6 +179,12 @@ export default function WeeklyReportForm({ projectId, variant = 'page', allowEdi
               </span>
             </span>
             <span className="wr-item-title">{it.title}</span>
+            {(it.evidence || it.requiresDocument) && (
+              <span className="item-evidence">
+                {it.evidence && <>Evidencia de cierre: {it.evidence}</>}
+                {it.requiresDocument && <span className="doc-required-tag">Requiere documento</span>}
+              </span>
+            )}
           </div>
           {locked ? (
             <span className="pcard-badge tone-green">
@@ -167,6 +207,28 @@ export default function WeeklyReportForm({ projectId, variant = 'page', allowEdi
             </div>
           )}
         </div>
+        {!locked && d?.status === 'cumplido' && it.requiresDocument && (
+          <div className="wr-doc">
+            {d.doc ? (
+              <span className="wr-doc-ok">
+                Documento adjunto: <b>{d.doc.name}</b>
+              </span>
+            ) : (
+              <span className="wr-doc-missing">Este hito exige el documento de evidencia para marcarlo cumplido.</span>
+            )}
+            {!readOnly && (
+              <label className="note-file">
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg"
+                  disabled={uploading === it.itemId}
+                  onChange={(e) => attachDocument(it.itemId, e.target.files?.[0] ?? null)}
+                />
+                <span>{uploading === it.itemId ? 'Subiendo…' : d.doc ? 'Cambiar documento' : 'Adjuntar documento'}</span>
+              </label>
+            )}
+          </div>
+        )}
         {!locked && d?.status === 'cumplido' && (
           <span className="wr-qa-hint">Al enviar, queda como seguimiento pendiente de aprobación de QA.</span>
         )}

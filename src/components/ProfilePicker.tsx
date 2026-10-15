@@ -5,6 +5,9 @@ import { initials } from './DirectorySearch';
 
 interface Props {
   role: UserRole;
+  // Roles adicionales que también se pueden elegir (ej. la persona asignada
+  // puede ser desarrollador o QA). Los resultados se mezclan.
+  extraRoles?: UserRole[];
   value: ProfileLite | null;
   onChange: (p: ProfileLite | null) => void;
   placeholder?: string;
@@ -15,7 +18,10 @@ interface Props {
 // para el directorio INTERNO de esta app (profiles reales), controlado, sin
 // la opción de "agregar externo por email" -- estos actores deben ser cuentas
 // reales con el rol correcto, no texto libre.
-export default function ProfilePicker({ role, value, onChange, placeholder, invalid }: Props) {
+export default function ProfilePicker({ role, extraRoles, value, onChange, placeholder, invalid }: Props) {
+  const roles = [role, ...(extraRoles ?? [])];
+  const rolesKey = roles.join(',');
+  const roleLabels = roles.map((r) => ACTOR_ROLE_LABEL[r]).join(' o ');
   const [q, setQ] = useState('');
   const [results, setResults] = useState<ProfileLite[]>([]);
   const [loading, setLoading] = useState(false);
@@ -27,7 +33,11 @@ export default function ProfilePicker({ role, value, onChange, placeholder, inva
     debounceRef.current = window.setTimeout(async () => {
       setLoading(true);
       try {
-        setResults(await ProfilesApi.searchByRole(role, q.trim(), 20));
+        const lists = await Promise.all(roles.map((r) => ProfilesApi.searchByRole(r, q.trim(), 20)));
+        const seen = new Set<string>();
+        const merged = lists.flat().filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
+        merged.sort((a, b) => (a.fullName ?? a.email).localeCompare(b.fullName ?? b.email, 'es'));
+        setResults(merged);
       } catch {
         setResults([]);
       } finally {
@@ -38,7 +48,8 @@ export default function ProfilePicker({ role, value, onChange, placeholder, inva
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
     // Precarga resultados al enfocar (q vacío) sin que el usuario tenga que escribir.
-  }, [q, role]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, rolesKey]);
 
   if (value) {
     return (
@@ -57,12 +68,12 @@ export default function ProfilePicker({ role, value, onChange, placeholder, inva
         onChange={(e) => setQ(e.target.value)}
         onFocus={() => setOpen(true)}
         onBlur={() => window.setTimeout(() => setOpen(false), 150)}
-        placeholder={placeholder ?? `Buscar ${ACTOR_ROLE_LABEL[role].toLowerCase()}…`}
+        placeholder={placeholder ?? `Buscar ${roleLabels.toLowerCase()}…`}
       />
       {loading && <div className="directory-search-hint">Buscando…</div>}
       {open && !loading && results.length === 0 && (
         <div className="directory-search-hint">
-          No hay cuentas con rol "{ACTOR_ROLE_LABEL[role]}" que coincidan.
+          No hay cuentas con rol {roleLabels} que coincidan.
         </div>
       )}
       {open && results.length > 0 && (
@@ -81,7 +92,10 @@ export default function ProfilePicker({ role, value, onChange, placeholder, inva
             >
               <span className="ds-avatar">{initials(p.fullName ?? p.email)}</span>
               <span className="ds-result-info">
-                <span className="name">{p.fullName ?? p.email}</span>
+                <span className="name">
+                  {p.fullName ?? p.email}
+                  {roles.length > 1 && p.role !== role && <span className="ds-role-tag">{ACTOR_ROLE_LABEL[p.role]}</span>}
+                </span>
                 <span className="email">{p.email}</span>
               </span>
             </button>

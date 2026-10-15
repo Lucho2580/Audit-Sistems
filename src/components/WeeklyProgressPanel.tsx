@@ -22,7 +22,7 @@ export default function WeeklyProgressPanel({ projectId, canFill, isComplete }: 
   const { profile } = useAuth();
   // Una vez enviado, la persona asignada YA NO puede corregirlo (el modal
   // bloqueante es su forma de llenarlo); admin/superadmin sí.
-  const canEditOwnEntry = profile?.role !== 'desarrollador';
+  const canEditOwnEntry = profile?.role === 'admin' || profile?.role === 'superadmin';
   const [indicator, setIndicator] = useState<number | null>(null);
   // Cambia al enviar, para que el historial se recargue con el reporte nuevo.
   const [version, setVersion] = useState(0);

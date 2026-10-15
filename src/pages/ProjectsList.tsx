@@ -80,13 +80,12 @@ interface ActorForm {
   name: string;
   jefes: ProfileLite[];
   responsable: ProfileLite | null;
-  clientes: ProfileLite[];
   startDate: string;
   deadlineDate: string;
   proveedor: string; // nombre de un proveedor registrado; vacío = Sin asignar
 }
 
-const EMPTY_FORM: ActorForm = { name: '', jefes: [], responsable: null, clientes: [], startDate: '', deadlineDate: '', proveedor: '' };
+const EMPTY_FORM: ActorForm = { name: '', jefes: [], responsable: null, startDate: '', deadlineDate: '', proveedor: '' };
 
 export default function ProjectsList() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -265,8 +264,6 @@ export default function ProjectsList() {
       for (const jefe of form.jefes) {
         await ProjectsApi.addJefe(id, jefe.id);
       }
-      // Los clientes ya no se eligen al crear (se pueden agregar después en
-      // "Editar actores").
       setForm(EMPTY_FORM);
       setFormErrors({});
       setShowIntake(false);
@@ -288,7 +285,6 @@ export default function ProjectsList() {
       name: p.name,
       jefes: p.jefes.map((j) => ({ id: j.id, fullName: j.nombre, email: '', role: 'admin' as const })),
       responsable: p.responsableId ? { id: p.responsableId, fullName: p.responsableNombre, email: '', role: 'desarrollador' } : null,
-      clientes: p.clientes.map((c) => ({ id: c.id, fullName: c.nombre, email: '', role: 'cliente' as const })),
       startDate: p.startDate ?? '',
       deadlineDate: p.deadlineDate ?? '',
       proveedor: p.proveedor && p.proveedor !== 'Sin asignar' ? p.proveedor : '',
@@ -332,14 +328,6 @@ export default function ProjectsList() {
       }
       for (const jefe of editingProject.jefes) {
         if (!afterJefeIds.has(jefe.id)) await ProjectsApi.removeJefe(editingProject.id, jefe.id);
-      }
-      const beforeIds = new Set(editingProject.clientes.map((c) => c.id));
-      const afterIds = new Set(editForm.clientes.map((c) => c.id));
-      for (const cliente of editForm.clientes) {
-        if (!beforeIds.has(cliente.id)) await ProjectsApi.addClient(editingProject.id, cliente.id);
-      }
-      for (const cliente of editingProject.clientes) {
-        if (!afterIds.has(cliente.id)) await ProjectsApi.removeClient(editingProject.id, cliente.id);
       }
       setEditingProject(null);
       load();
@@ -501,6 +489,7 @@ export default function ProjectsList() {
                   <label>Persona asignada</label>
                   <ProfilePicker
                     role="desarrollador"
+                    extraRoles={['qa']}
                     value={form.responsable}
                     onChange={(p) => setForm({ ...form, responsable: p })}
                   />
@@ -574,7 +563,7 @@ export default function ProjectsList() {
             </div>
             <div className="modal-body">
               <p className="modal-intro">
-                Reasigna quién es el jefe de proyecto, la persona asignada y el proveedor de "
+                Reasigna quién es el jefe de proyecto, la persona asignada (desarrollador o QA) y el proveedor de "
                 {editingProject.name}".
               </p>
               <div className="modal-fields">
@@ -592,20 +581,11 @@ export default function ProjectsList() {
                   <label>Persona asignada</label>
                   <ProfilePicker
                     role="desarrollador"
+                    extraRoles={['qa']}
                     value={editForm.responsable}
                     onChange={(p) => setEditForm({ ...editForm, responsable: p })}
                   />
                   {editErrors.responsable && <span className="field-error">{editErrors.responsable}</span>}
-                </div>
-                <div className={`modal-field${editErrors.cliente ? ' has-error' : ''}`}>
-                  <label>Clientes</label>
-                  <MultiProfilePicker
-                    role="cliente"
-                    value={editForm.clientes}
-                    onChange={(list) => setEditForm({ ...editForm, clientes: list })}
-                    invalid={!!editErrors.cliente}
-                  />
-                  {editErrors.cliente && <span className="field-error">{editErrors.cliente}</span>}
                 </div>
                 <div className="modal-field">
                   <label htmlFor="edit-proveedor">Proveedor</label>

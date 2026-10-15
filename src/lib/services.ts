@@ -21,14 +21,15 @@ const PROJECT_SELECT = `
   sections (
     id, key, code, title, notes, orderIndex:order_index,
     items:checklist_items (
-      id, n, text, percent, dueDate:due_date,
+      id, n, text, percent, dueDate:due_date, evidence, requiresDocument:requires_document,
       assignedTo:assigned_to, assignedToNombre:profiles(fullName:full_name),
       log:item_logs (
         id, text, authorEmail:author_email, createdAt:created_at,
         qaApproved:qa_approved, qaApprovedAt:qa_approved_at,
         qaApprovedByNombre:profiles!item_logs_qa_approved_by_fkey(fullName:full_name),
         qaRejectedAt:qa_rejected_at, qaRejectionReason:qa_rejection_reason,
-        qaRejectedByNombre:profiles!item_logs_qa_rejected_by_fkey(fullName:full_name)
+        qaRejectedByNombre:profiles!item_logs_qa_rejected_by_fkey(fullName:full_name),
+        documentPath:document_path, documentName:document_name
       )
     )
   )
@@ -251,8 +252,11 @@ export const ProjectsApi = {
     throwIfError(res as any);
   },
 
-  async addItemLog(itemId: string, text: string) {
-    const res = await supabase.from('item_logs').insert({ text, item_id: itemId });
+  async addItemLog(itemId: string, text: string, document?: { path: string; name: string } | null) {
+    const res = await supabase.from('item_logs').insert({
+      text, item_id: itemId,
+      document_path: document?.path ?? null, document_name: document?.name ?? null,
+    });
     throwIfError(res as any);
   },
 
@@ -429,6 +433,26 @@ export const MeetingsApi = {
 // desde su portal en vez de solo ver los campos de texto. RLS en
 // storage.objects reusa can_view_project() sobre el primer segmento del
 // path (ver migración 2026091104_actas_storage.sql).
+// Documentos de evidencia de los hitos (bucket privado "evidencias"):
+// <proyecto>/<hito>/<marca de tiempo>-<archivo>. Solo quien gestiona el
+// proyecto puede subir; quien puede ver el proyecto puede abrirlos.
+export const EvidenceApi = {
+  async upload(projectId: string, itemId: string, file: File): Promise<{ path: string; name: string }> {
+    if (file.size > 20 * 1024 * 1024) throw new Error('El archivo supera el máximo de 20 MB.');
+    const safe = file.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9._-]+/g, '_').slice(-80);
+    const path = `${projectId}/${itemId}/${Date.now()}-${safe}`;
+    const { error } = await supabase.storage.from('evidencias').upload(path, file, { upsert: false, contentType: file.type || undefined });
+    if (error) throw new Error(error.message);
+    return { path, name: file.name };
+  },
+
+  async open(path: string): Promise<void> {
+    const { data, error } = await supabase.storage.from('evidencias').createSignedUrl(path, 600);
+    if (error || !data?.signedUrl) throw new Error(error?.message ?? 'No se pudo abrir el documento.');
+    window.open(data.signedUrl, '_blank', 'noopener');
+  },
+};
+
 export const ActasApi = {
   async upload(projectId: string, meetingId: string, file: Blob): Promise<void> {
     const path = `${projectId}/${meetingId}.pdf`;
@@ -698,7 +722,7 @@ export const WeeklyProgressApi = {
   async submitReport(
     projectId: string,
     note: string,
-    items: { itemId: string; status: MilestoneReportStatus; note: string }[],
+    items: { itemId: string; status: MilestoneReportStatus; note: string; documentPath?: string | null; documentName?: string | null }[],
   ): Promise<void> {
     const res = await supabase.rpc('submit_weekly_report', {
       p_project_id: projectId, p_note: note, p_items: items,

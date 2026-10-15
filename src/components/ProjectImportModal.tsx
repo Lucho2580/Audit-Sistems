@@ -48,7 +48,11 @@ export default function ProjectImportModal({ myOfficeProviderId, onClose, onImpo
 
       const [jefes, responsables, clientes] = await Promise.all([
         ProfilesApi.findByEmail(allJefeEmails, 'admin'),
-        ProfilesApi.findByEmail(allRespEmails, 'desarrollador'),
+        // La persona asignada puede ser desarrollador o QA.
+        Promise.all([
+          ProfilesApi.findByEmail(allRespEmails, 'desarrollador'),
+          ProfilesApi.findByEmail(allRespEmails, 'qa'),
+        ]).then(([devs, qas]) => [...devs, ...qas]),
         allClienteEmails.length ? ProfilesApi.findByEmail(allClienteEmails, 'cliente') : Promise.resolve([]),
       ]);
       const jefeMap = byEmail(jefes);
@@ -68,7 +72,7 @@ export default function ProjectImportModal({ myOfficeProviderId, onClose, onImpo
 
         const resolvedResp = r.responsableEmail ? (respMap.get(r.responsableEmail.toLowerCase()) ?? null) : null;
         if (!r.responsableEmail) errors.push('Falta la persona asignada.');
-        else if (!resolvedResp) errors.push(`Persona asignada no encontrada con rol desarrollador: ${r.responsableEmail}`);
+        else if (!resolvedResp) errors.push(`Persona asignada no encontrada con rol desarrollador o QA: ${r.responsableEmail}`);
 
         const resolvedClientes = r.clienteEmails.map((e) => clienteMap.get(e.toLowerCase())).filter((p): p is ProfileLite => !!p);
         if (resolvedClientes.length < r.clienteEmails.length) {

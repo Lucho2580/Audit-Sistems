@@ -28,7 +28,7 @@ const ROLE_META: Record<ManagedRole, { code: string; title: string; hint: string
   qa: {
     code: 'QA',
     title: 'QA',
-    hint: 'Aprueban fases de proyecto y reportes de seguimiento. Reciben un correo cuando una fase se manda a revisión.',
+    hint: 'Aprueban fases de proyecto y reportes de seguimiento. También pueden ser persona asignada (responsable) de proyectos; en esos proyectos sus hitos los revisa otra persona de QA.',
     entraRole: 'QA',
   },
 };

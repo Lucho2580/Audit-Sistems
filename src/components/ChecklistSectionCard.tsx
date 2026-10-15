@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ProjectsApi } from '../lib/services';
+import { EvidenceApi, ProjectsApi } from '../lib/services';
 import { bandOf, type Section, type ChecklistItem } from '../types/domain';
 
 interface Props {
+  projectId: string; // para guardar los documentos de evidencia en <proyecto>/<hito>/
   section: Section;
   filterStatus: 'all' | 'pendiente' | 'progreso' | 'completo';
   canEdit: boolean; // agregar/eliminar checkpoints, aprobar seguimientos, notas de sección
@@ -21,9 +22,12 @@ function computeStats(items: ChecklistItem[]) {
   return { total, pct };
 }
 
-export default function ChecklistSectionCard({ section, filterStatus, canEdit, canEditPercent, canReview, minDate, maxDate, onChanged }: Props) {
+export default function ChecklistSectionCard({ projectId, section, filterStatus, canEdit, canEditPercent, canReview, minDate, maxDate, onChanged }: Props) {
   const [openHistory, setOpenHistory] = useState<Set<string>>(new Set());
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  // Documento de evidencia elegido para el próximo seguimiento de cada hito.
+  const [noteFiles, setNoteFiles] = useState<Record<string, File | null>>({});
+  const [noteBusy, setNoteBusy] = useState<string | null>(null);
   const [newItemText, setNewItemText] = useState('');
   const [notes, setNotes] = useState(section.notes);
   // Reporte que QA está rechazando ahora mismo (uno a la vez) y su motivo.
@@ -99,11 +103,29 @@ export default function ChecklistSectionCard({ section, filterStatus, canEdit, c
 
   async function addNote(item: ChecklistItem) {
     const text = (noteDrafts[item.id] ?? '').trim();
-    if (!text) return;
-    await ProjectsApi.addItemLog(item.id, text);
-    setNoteDrafts((d) => ({ ...d, [item.id]: '' }));
-    setOpenHistory((prev) => new Set(prev).add(item.id));
-    onChanged();
+    const file = noteFiles[item.id] ?? null;
+    if (!text && !file) return;
+    setNoteBusy(item.id);
+    try {
+      const document = file ? await EvidenceApi.upload(projectId, item.id, file) : null;
+      await ProjectsApi.addItemLog(item.id, text || `Documento de evidencia: ${file!.name}`, document);
+      setNoteDrafts((d) => ({ ...d, [item.id]: '' }));
+      setNoteFiles((f) => ({ ...f, [item.id]: null }));
+      setOpenHistory((prev) => new Set(prev).add(item.id));
+      onChanged();
+    } catch (err) {
+      alert(`No se pudo guardar el seguimiento: ${(err as Error).message}`);
+    } finally {
+      setNoteBusy(null);
+    }
+  }
+
+  async function openDocument(path: string) {
+    try {
+      await EvidenceApi.open(path);
+    } catch (err) {
+      alert((err as Error).message);
+    }
   }
 
   async function addItem() {
@@ -156,7 +178,15 @@ export default function ChecklistSectionCard({ section, filterStatus, canEdit, c
                 <span className="item-code">
                   {section.code}-{String(it.n).padStart(2, '0')}
                 </span>
-                <span className={`item-text ${band === 'completo' ? 'done' : ''}`}>{it.text}</span>
+                <span className={`item-text ${band === 'completo' ? 'done' : ''}`}>
+                  {it.text}
+                  {(it.evidence || it.requiresDocument) && (
+                    <span className="item-evidence">
+                      {it.evidence && <>Evidencia de cierre: {it.evidence}</>}
+                      {it.requiresDocument && <span className="doc-required-tag">Requiere documento</span>}
+                    </span>
+                  )}
+                </span>
                 <span className="item-actions">
                   <span className="resp-tag">{it.assignedToNombre ?? 'Sin asignar'}</span>
                   {canEdit ? (
@@ -206,6 +236,14 @@ export default function ChecklistSectionCard({ section, filterStatus, canEdit, c
                             })}
                           </span>
                           <span className="log-text">{l.text}</span>
+                          {l.documentPath && (
+                            <button type="button" className="log-doc-link" onClick={() => openDocument(l.documentPath!)}>
+                              Ver documento{l.documentName ? `: ${l.documentName}` : ''}
+                            </button>
+                          )}
+                          {it.requiresDocument && !l.documentPath && !l.qaApproved && (
+                            <span className="log-doc-missing">Sin documento: no se puede aprobar</span>
+                          )}
                           {l.qaApproved ? (
                             <span className="status-pill tone-green small" title={l.qaApprovedByNombre ? `Aprobado por ${l.qaApprovedByNombre}` : undefined}>
                               Aprobado
@@ -271,9 +309,19 @@ export default function ChecklistSectionCard({ section, filterStatus, canEdit, c
                         onChange={(e) => setNoteDrafts((d) => ({ ...d, [it.id]: e.target.value }))}
                         placeholder="Agregar observación de seguimiento…"
                       />
-                      <button className="btn small" onClick={() => addNote(it)}>
-                        Agregar
-                      </button>
+                      <div className="note-form-side">
+                        <label className="note-file">
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg"
+                            onChange={(e) => setNoteFiles((f) => ({ ...f, [it.id]: e.target.files?.[0] ?? null }))}
+                          />
+                          <span>{noteFiles[it.id]?.name ?? (it.requiresDocument ? 'Adjuntar documento (exigido)' : 'Adjuntar documento')}</span>
+                        </label>
+                        <button className="btn small" onClick={() => addNote(it)} disabled={noteBusy === it.id}>
+                          {noteBusy === it.id ? 'Guardando…' : 'Agregar'}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

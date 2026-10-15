@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { WeeklyProgressApi } from '../lib/services';
+import { EvidenceApi, WeeklyProgressApi } from '../lib/services';
 import type { WeeklyMilestoneLine, WeeklyProgressDetail as WeeklyProgressDetailData, WeeklyProgressWeek } from '../types/domain';
 
 interface Props {
@@ -118,6 +118,15 @@ export default function WeeklyProgressDetail({ projectId }: Props) {
                     {line.late ? `Venció ${fmtDay(line.dueDate)} · reportado como atrasado` : `Vence ${fmtDay(line.dueDate)}`}
                   </span>
                   {line.note && <span className="wmd-line-note">“{line.note}”</span>}
+                  {line.documentPath && (
+                    <button
+                      type="button"
+                      className="log-doc-link"
+                      onClick={() => EvidenceApi.open(line.documentPath!).catch((err) => alert((err as Error).message))}
+                    >
+                      Ver documento{line.documentName ? `: ${line.documentName}` : ''}
+                    </button>
+                  )}
                   {line.qa === 'rechazado' && line.qaReason && (
                     <span className="wmd-line-note rejected">Motivo del rechazo de QA: {line.qaReason}</span>
                   )}

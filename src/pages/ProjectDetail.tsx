@@ -9,7 +9,7 @@ import RoadmapPhases from '../components/RoadmapPhases';
 import DeliveryPanel from '../components/DeliveryPanel';
 import ParticipationChart from '../components/ParticipationChart';
 import SectionProgressChart from '../components/SectionProgressChart';
-import { ProjectsApi, MeetingsApi, PhasesApi, PhaseTasksApi, DailyNotesApi } from '../lib/services';
+import { ProjectsApi, MeetingsApi, PhasesApi, DailyNotesApi } from '../lib/services';
 import { generateProjectReportPdf } from '../lib/pdf';
 import {
   STATUS_META, DELAY_STATUS_META, phaseEndDate, taskDelayStatus, worstDelayStatus,
@@ -46,23 +46,20 @@ export default function ProjectDetail() {
   const [project, setProject] = useState<Project | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [phases, setPhases] = useState<ProjectPhase[]>([]);
-  const [tasks, setTasks] = useState<PhaseTask[]>([]);
   const [dailyNotes, setDailyNotes] = useState<DailyNote[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pendiente' | 'progreso' | 'completo'>('all');
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [p, mts, phs, tks, notes] = await Promise.all([
+    const [p, mts, phs, notes] = await Promise.all([
       ProjectsApi.get(id),
       MeetingsApi.listByProject(id),
       PhasesApi.listByProject(id),
-      PhaseTasksApi.listByProject(id),
       DailyNotesApi.listByProject(id),
     ]);
     setProject(p);
     setMeetings(mts);
     setPhases(phs);
-    setTasks(tks);
     setDailyNotes(notes);
   }, [id]);
 
@@ -70,13 +67,40 @@ export default function ProjectDetail() {
     load();
   }, [load]);
 
+  // Los 13 hitos estándar hacen de "tareas" de su fase (sección y fase
+  // comparten clave: levantamiento / gestion / entrega) para el cronograma,
+  // el calendario, la participación y el atraso del proyecto. Cada hito va
+  // del inicio de su fase a su fecha límite; sin fecha límite no se dibuja.
+  const tasks = useMemo<PhaseTask[]>(() => {
+    if (!project) return [];
+    const phaseByKey = new Map<string, ProjectPhase>(phases.map((ph) => [ph.key, ph]));
+    return project.sections.flatMap((sec) =>
+      sec.items.map((it) => {
+        const ph = phaseByKey.get(sec.key);
+        const start = it.dueDate && ph?.startDate && ph.startDate <= it.dueDate ? ph.startDate : it.dueDate;
+        return {
+          id: it.id,
+          phaseId: ph?.id ?? sec.id,
+          projectId: project.id,
+          text: `${sec.code}-${it.n} · ${it.text}`,
+          assignedTo: it.assignedTo,
+          assignedToNombre: it.assignedToNombre,
+          startDate: start,
+          plannedEndDate: it.dueDate,
+          percent: it.percent,
+          observaciones: null,
+        };
+      }),
+    );
+  }, [project, phases]);
+
   const stats = project?.stats ?? { total: 0, done: 0, prog: 0, pend: 0, pct: 0 };
   useSidebarStats(
     useMemo(
       () => ({
-        title: 'Checkpoints',
+        title: 'Hitos',
         items: [
-          { label: 'Checkpoints totales', value: String(stats.total), note: 'en el proyecto' },
+          { label: 'Hitos totales', value: String(stats.total), note: 'en el proyecto' },
           { label: 'Completados', value: String(stats.done), note: 'con firma' },
           { label: 'En progreso', value: String(stats.prog), note: 'en revisión' },
           { label: 'Pendientes', value: String(stats.pend), note: 'sin iniciar' },
@@ -104,10 +128,11 @@ export default function ProjectDetail() {
   const isResponsable = profile?.id != null && profile.id === project.responsableId;
 
   const plannedEntregaDate = phaseEndDate(phases.find((p) => p.key === 'entrega'));
-  const plannedFinalDate = phaseEndDate(phases.find((p) => p.key === 'fin'));
+  // Ya no hay fase "Fin": la entrega final es el fin de la fase Entrega.
+  const plannedFinalDate = plannedEntregaDate;
 
-  // Atraso a nivel de proyecto (ítem 5): el peor estado entre todas las
-  // tareas de todas las fases, mostrado como badge en el masthead.
+  // Atraso a nivel de proyecto: el peor estado entre todos los hitos con
+  // fecha límite, mostrado como badge en el masthead.
   const projectDelay = worstDelayStatus(tasks.map((t) => taskDelayStatus(t)));
 
   return (
@@ -121,8 +146,7 @@ export default function ProjectDetail() {
           <p className="eyebrow">{project.code}</p>
           <h1>{project.name}</h1>
           <p className="sub">
-            {project.clientes.length > 1 ? 'Clientes' : 'Cliente'}:{' '}
-            {project.clientes.length ? project.clientes.map((c) => c.nombre).join(', ') : 'Sin asignar'}
+            Persona asignada: {project.responsableNombre ?? 'Sin asignar'}
             {' · '}Proveedor: {project.proveedor}
           </p>
           {tasks.length > 0 && (
@@ -178,6 +202,7 @@ export default function ProjectDetail() {
         .map((sec) => (
           <ChecklistSectionCard
             key={sec.id}
+            projectId={project.id}
             section={sec}
             filterStatus={filterStatus}
             canEdit={canEdit || isQaReviewer}
