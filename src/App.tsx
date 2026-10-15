@@ -28,7 +28,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
       <div className="wrap">
         <div className="empty-state">
           <p>Tu cuenta no está autorizada en el Sistema de Auditoría.</p>
-          <p>Pide que Dirección de Sistemas te invite primero.</p>
+          <p>Pide a Dirección de Sistemas que te asigne un rol en Entra ID.</p>
           <button className="btn ghost small" onClick={() => signOut()}>Cerrar sesión</button>
         </div>
       </div>

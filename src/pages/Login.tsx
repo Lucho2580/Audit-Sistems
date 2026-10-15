@@ -40,10 +40,10 @@ export default function Login() {
       const message = decodeURIComponent(desc.replace(/\+/g, ' '));
       // Supabase Auth no deja pasar el texto de la excepción del trigger
       // reject_unauthorized_signup: lo reemplaza por este genérico. En la
-      // práctica la única causa es una cuenta sin invitación.
+      // práctica la única causa es una cuenta sin rol en Entra ID ni invitación.
       setError(
         /database error saving new user/i.test(message)
-          ? 'Esta cuenta no está autorizada en el Sistema de Auditoría. Pide que Dirección de Sistemas te invite primero.'
+          ? 'Esta cuenta no está autorizada en el Sistema de Auditoría. Pide a Dirección de Sistemas que te asigne un rol en Entra ID.'
           : message,
       );
       window.history.replaceState(null, '', window.location.pathname);

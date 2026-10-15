@@ -5,6 +5,7 @@ import ProjectsDashboard from '../components/ProjectsDashboard';
 import ProfilePicker from '../components/ProfilePicker';
 import MultiProfilePicker from '../components/MultiProfilePicker';
 import ProjectImportModal from '../components/ProjectImportModal';
+import PersonChip from '../components/PersonChip';
 import { useSidebarStats, useDashboardToggle } from '../context/ShellChromeContext';
 import { ProjectsApi, ProvidersApi } from '../lib/services';
 import { exportProjectsCsv, downloadCsvTemplate } from '../lib/csv';
@@ -21,29 +22,6 @@ const ACTIVE_STATES: ProjectStatus[] = ['levantamiento', 'desarrollo', 'validaci
 const DELAY_TONE: Record<DelayStatus, string> = {
   completado: 'green', en_tiempo: 'green', en_riesgo: 'gold', atrasado: 'rust',
 };
-
-function initialsOf(name: string): string {
-  return name.split(/[\s,]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
-}
-
-// Persona de la tarjeta: iniciales en círculo + rol + nombre. Sin nombre se
-// ve punteada y en cursiva, para que salte a la vista que falta asignarla.
-function PersonChip({ role, name }: { role: string; name: string | null | undefined }) {
-  const missing = !name;
-  return (
-    <div className="pcard-person">
-      <span className={`pcard-avatar${missing ? ' missing' : ''}`} aria-hidden="true">
-        {missing ? '—' : initialsOf(name)}
-      </span>
-      <span className="pcard-person-text">
-        <span className="pcard-person-role">{role}</span>
-        <span className={`pcard-person-name${missing ? ' missing' : ''}`} title={name ?? undefined}>
-          {missing ? 'Sin asignar' : name}
-        </span>
-      </span>
-    </div>
-  );
-}
 
 function ScheduleBadge({ status }: { status: DelayStatus }) {
   return (
