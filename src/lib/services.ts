@@ -130,13 +130,21 @@ export const ProjectsApi = {
   // se manejan aparte con add/removeJefe() y add/removeClient().
   async setActors(
     projectId: string,
-    payload: { responsableId: string; proveedorId: string },
+    // proveedorId null = no tocar el proveedor (se cambia con setProvider).
+    payload: { responsableId: string; proveedorId: string | null },
   ): Promise<void> {
     const res = await supabase.rpc('set_project_actors', {
       p_project_id: projectId,
       p_responsable_id: payload.responsableId,
       p_proveedor_id: payload.proveedorId,
     });
+    throwIfError(res as any);
+  },
+
+  // Proveedor por nombre (texto libre); vacío = "Sin asignar". Un nombre
+  // nuevo queda agregado a la lista de proveedores como sugerencia.
+  async setProvider(projectId: string, proveedor: string): Promise<void> {
+    const res = await supabase.rpc('set_project_provider', { p_project_id: projectId, p_proveedor: proveedor });
     throwIfError(res as any);
   },
 

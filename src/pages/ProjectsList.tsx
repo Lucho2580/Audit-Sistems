@@ -83,9 +83,10 @@ interface ActorForm {
   clientes: ProfileLite[];
   startDate: string;
   deadlineDate: string;
+  proveedor: string; // solo en "Editar actores"; vacío = Sin asignar
 }
 
-const EMPTY_FORM: ActorForm = { name: '', jefes: [], responsable: null, clientes: [], startDate: '', deadlineDate: '' };
+const EMPTY_FORM: ActorForm = { name: '', jefes: [], responsable: null, clientes: [], startDate: '', deadlineDate: '', proveedor: '' };
 
 export default function ProjectsList() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -125,6 +126,7 @@ export default function ProjectsList() {
   // resuelve una vez y se manda solo, en vez de pedirle al usuario que elija
   // entre proveedores que ya no existen como opción.
   const [myOfficeProviderId, setMyOfficeProviderId] = useState<string | null>(null);
+  const [providerNames, setProviderNames] = useState<string[]>([]);
   const navigate = useNavigate();
   const { profile } = useAuth();
   // El asignado (desarrollador) ya no puede cambiar el estado ni borrar
@@ -134,7 +136,10 @@ export default function ProjectsList() {
 
   useEffect(() => {
     ProvidersApi.list()
-      .then((list) => setMyOfficeProviderId(list.find((p) => p.name === 'MyOffice')?.id ?? list[0]?.id ?? null))
+      .then((list) => {
+        setMyOfficeProviderId(list.find((p) => p.name === 'MyOffice')?.id ?? list[0]?.id ?? null);
+        setProviderNames(list.map((p) => p.name));
+      })
       .catch(() => setMyOfficeProviderId(null));
   }, []);
 
@@ -150,6 +155,18 @@ export default function ProjectsList() {
   }, []);
 
   const normalizedSearch = nameSearch.trim().toLowerCase();
+  // Sugerencias del campo Proveedor: la tabla de proveedores más los nombres
+  // que ya tienen los proyectos (la mayoría solo existe como texto ahí).
+  const providerSuggestions = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const name of [...providerNames, ...projects.map((p) => p.proveedor)]) {
+      const clean = (name ?? '').trim();
+      if (!clean || clean.toLowerCase() === 'sin asignar') continue;
+      if (!byKey.has(clean.toLowerCase())) byKey.set(clean.toLowerCase(), clean);
+    }
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b, 'es'));
+  }, [providerNames, projects]);
+
   const visible = projects.filter(
     (p) =>
       (statusFilters.size === 0 || statusFilters.has(p.status)) &&
@@ -289,6 +306,7 @@ export default function ProjectsList() {
       clientes: p.clientes.map((c) => ({ id: c.id, fullName: c.nombre, email: '', role: 'cliente' as const })),
       startDate: p.startDate ?? '',
       deadlineDate: p.deadlineDate ?? '',
+      proveedor: p.proveedor && p.proveedor !== 'Sin asignar' ? p.proveedor : '',
     });
     setEditErrors({});
   }
@@ -298,9 +316,6 @@ export default function ProjectsList() {
     const errors: Record<string, string> = {};
     if (!editForm.jefes.length) errors.jefe = 'Elige al menos un jefe de proyecto.';
     if (!editForm.responsable) errors.responsable = 'Elige quién es la persona asignada.';
-    if (!editingProject.proveedorId && !myOfficeProviderId) {
-      errors.proveedor = 'No se encontró el proveedor interno (MyOffice) -- revisa en Herramientas.';
-    }
     if (editForm.startDate && editForm.deadlineDate && editForm.deadlineDate <= editForm.startDate) {
       errors.deadlineDate = 'La fecha de entrega esperada debe ser posterior a la fecha de inicio.';
     }
@@ -309,10 +324,16 @@ export default function ProjectsList() {
 
     setSavingActors(true);
     try {
+      // proveedorId null: set_project_actors deja el proveedor como está
+      // (antes mandaba MyOffice por defecto y pisaba el proveedor real).
       await ProjectsApi.setActors(editingProject.id, {
         responsableId: editForm.responsable!.id,
-        proveedorId: editingProject.proveedorId ?? myOfficeProviderId!,
+        proveedorId: null,
       });
+      const currentProvider = editingProject.proveedor && editingProject.proveedor !== 'Sin asignar' ? editingProject.proveedor : '';
+      if (editForm.proveedor.trim() !== currentProvider) {
+        await ProjectsApi.setProvider(editingProject.id, editForm.proveedor.trim());
+      }
       if (editForm.startDate !== (editingProject.startDate ?? '')) {
         await ProjectsApi.updateStartDate(editingProject.id, editForm.startDate || null);
       }
@@ -593,7 +614,22 @@ export default function ProjectsList() {
                     invalid={!!editErrors.cliente}
                   />
                   {editErrors.cliente && <span className="field-error">{editErrors.cliente}</span>}
-                  {editErrors.proveedor && <span className="field-error">{editErrors.proveedor}</span>}
+                </div>
+                <div className="modal-field">
+                  <label htmlFor="edit-proveedor">Proveedor</label>
+                  <input
+                    id="edit-proveedor"
+                    type="text"
+                    list="provider-suggestions"
+                    placeholder="Sin asignar -- escribe o elige un proveedor"
+                    value={editForm.proveedor}
+                    onChange={(e) => setEditForm({ ...editForm, proveedor: e.target.value })}
+                  />
+                  <datalist id="provider-suggestions">
+                    {providerSuggestions.map((name) => (
+                      <option key={name} value={name} />
+                    ))}
+                  </datalist>
                 </div>
                 <div className="modal-field">
                   <label>Fecha de inicio</label>

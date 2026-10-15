@@ -102,7 +102,7 @@ export default function ProjectsDashboard({ projects, onSliceClick, onProviderCl
           <div className="bar-chart">
             {byProvider.map(([name, count]) => (
               <div
-                className="bar-row"
+                className="bar-row with-pct"
                 key={name}
                 onClick={() => onProviderClick?.(name)}
                 style={{ cursor: onProviderClick ? 'pointer' : 'default' }}
@@ -113,6 +113,8 @@ export default function ProjectsDashboard({ projects, onSliceClick, onProviderCl
                   <span className="bar-fill2" style={{ width: `${(count / maxProvider) * 100}%` }} />
                 </span>
                 <span className="bar-value">{count}</span>
+                {/* Mismo cálculo que la leyenda de "Proyectos por estado": % sobre el total de proyectos. */}
+                <span className="donut-legend-pct bar-pct">{total ? Math.round((count / total) * 100) : 0}%</span>
               </div>
             ))}
           </div>
