@@ -9,7 +9,6 @@ import RoadmapPhases from '../components/RoadmapPhases';
 import DeliveryPanel from '../components/DeliveryPanel';
 import ParticipationChart from '../components/ParticipationChart';
 import SectionProgressChart from '../components/SectionProgressChart';
-import ProjectCalendar from '../components/ProjectCalendar';
 import { ProjectsApi, MeetingsApi, PhasesApi, PhaseTasksApi, DailyNotesApi } from '../lib/services';
 import { generateProjectReportPdf } from '../lib/pdf';
 import {
@@ -190,7 +189,6 @@ export default function ProjectDetail() {
           />
         ))}
 
-      <ProjectCalendar phases={phases} tasks={tasks} />
 
       <RoadmapPhases
         phases={phases}
@@ -213,6 +211,8 @@ export default function ProjectDetail() {
         project={project}
         meetings={meetings}
         dailyNotes={dailyNotes}
+        phases={phases}
+        tasks={tasks}
         canEdit={canEdit}
         canRegisterMeeting={canEditPercent}
         onChanged={load}

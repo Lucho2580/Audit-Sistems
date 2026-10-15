@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { MeetingsApi, DailyNotesApi, ProfilesApi, ActasApi, type DirectoryUser } from '../lib/services';
 import { generateMeetingActaPdf } from '../lib/acta';
-import { MEETING_STATE_META, type Compromiso, type DailyNote, type Meeting, type MeetingState, type Participant, type Project } from '../types/domain';
+import { MEETING_STATE_META, phaseEndDate, type Compromiso, type DailyNote, type Meeting, type MeetingState, type Participant, type PhaseTask, type Project, type ProjectPhase } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
 import DirectorySearch from './DirectorySearch';
 
@@ -12,6 +12,11 @@ const MONTH_LABELS = [
 const DAY_LABELS = ['LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB', 'DOM'];
 const ROLE_ORDER = ['Jefe de proyecto', 'Cliente', 'Persona asignada', 'Proveedor', 'Invitado'];
 const pad2 = (n: number) => String(n).padStart(2, '0');
+
+interface MilestoneItem {
+  kind: 'hito' | 'tarea';
+  label: string;
+}
 const todayISO = () => {
   const d = new Date();
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -21,6 +26,11 @@ interface Props {
   project: Project;
   meetings: Meeting[];
   dailyNotes: DailyNote[];
+  // Hitos (fin de cada fase) y tareas de fase (fecha fin planeada) -- antes
+  // vivían en un calendario aparte (ProjectCalendar); ahora se pintan en esta
+  // misma grilla junto a reuniones y notas, para tener un solo calendario.
+  phases: ProjectPhase[];
+  tasks: PhaseTask[];
   canEdit: boolean;
   // Además de canEdit (jefe/superadmin), la persona asignada también puede
   // dejar registrada una reunión que ella misma llevó -- para eso es este
@@ -30,7 +40,7 @@ interface Props {
   onChanged: () => void;
 }
 
-export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdit, canRegisterMeeting, onChanged }: Props) {
+export default function MeetingsCalendar({ project, meetings, dailyNotes, phases, tasks, canEdit, canRegisterMeeting, onChanged }: Props) {
   const { profile } = useAuth();
   const myEmail = profile?.email?.toLowerCase();
   const [signingFor, setSigningFor] = useState<string | null>(null);
@@ -75,6 +85,31 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
     for (let i = 0; i < trailing; i++) arr.push({ day: null, date: null });
     return arr;
   }, [y, m, totalDays, startOffset, trailing]);
+
+  const milestonesByDay = useMemo(() => {
+    const map = new Map<string, MilestoneItem[]>();
+    const push = (date: string | null, item: MilestoneItem) => {
+      if (!date) return;
+      const list = map.get(date) ?? [];
+      list.push(item);
+      map.set(date, list);
+    };
+    for (const phase of phases) {
+      push(phaseEndDate(phase), { kind: 'hito', label: `Fin de fase: ${phase.label}` });
+    }
+    for (const task of tasks) {
+      push(task.plannedEndDate, { kind: 'tarea', label: task.text });
+    }
+    return map;
+  }, [phases, tasks]);
+
+  // Con un día elegido: los hitos/tareas de ese día. Sin día: los del mes
+  // que se está viendo (todo el proyecto serían decenas de tareas).
+  const monthPrefix = `${y}-${pad2(m + 1)}-`;
+  const visibleMilestones = [...milestonesByDay.entries()]
+    .filter(([date]) => (selectedDay ? date === selectedDay : date.startsWith(monthPrefix)))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([date, items]) => items.map((it) => ({ ...it, date })));
 
   const visibleMeetings = (selectedDay ? meetings.filter((mt) => mt.date === selectedDay) : meetings)
     .slice()
@@ -389,7 +424,7 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
       <div className="section-head">
         <div className="title-block">
           <span className="code-tag">CAL</span>
-          <h2>Calendario de reuniones y seguimiento</h2>
+          <h2>Calendario del proyecto</h2>
         </div>
       </div>
       <div className="cal-header">
@@ -404,6 +439,8 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
           <span><span className="dot" style={{ background: 'var(--green)' }} />Realizada</span>
           <span><span className="dot" style={{ background: 'var(--rust)' }} />No realizada</span>
           <span><span className="dot dot-square" style={{ background: 'var(--ink)' }} />Seguimiento diario</span>
+          <span><span className="cal-dot milestone-dot" />Fin de fase</span>
+          <span><span className="cal-dot task-dot" />Tarea</span>
         </div>
       </div>
       <div className="cal-grid">
@@ -414,6 +451,7 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
           if (c.date === null) return <div className="cal-day empty" key={idx} />;
           const dayMeetings = meetings.filter((mt) => mt.date === c.date);
           const dayNotes = dailyNotes.filter((n) => n.date === c.date);
+          const dayMilestones = milestonesByDay.get(c.date) ?? [];
           return (
             <div
               key={c.date}
@@ -426,6 +464,9 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
                   <span className={`cal-dot ${mt.state}`} key={mt.id} />
                 ))}
                 {dayNotes.length > 0 && <span className="cal-dot dot-square note-dot" title="Seguimiento diario" />}
+                {dayMilestones.slice(0, 4).map((it, i) => (
+                  <span key={`ms-${i}`} className={`cal-dot ${it.kind === 'hito' ? 'milestone-dot' : 'task-dot'}`} title={it.label} />
+                ))}
               </div>
             </div>
           );
@@ -731,6 +772,23 @@ export default function MeetingsCalendar({ project, meetings, dailyNotes, canEdi
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {visibleMilestones.length > 0 && (
+        <div className="cal-milestones">
+          <div className="cal-milestones-title">
+            Hitos y tareas {selectedDay ? `del ${selectedDay}` : `de ${MONTH_LABELS[m]}`}
+          </div>
+          <ul>
+            {visibleMilestones.map((it, i) => (
+              <li key={i}>
+                <span className={`cal-dot ${it.kind === 'hito' ? 'milestone-dot' : 'task-dot'}`} />
+                <span className="cal-milestone-date">{it.date}</span>
+                <span className={it.kind === 'hito' ? 'cal-milestone-label hito' : 'cal-milestone-label'}>{it.label}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

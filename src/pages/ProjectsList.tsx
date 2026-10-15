@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import ProjectsDashboard from '../components/ProjectsDashboard';
 import ProfilePicker from '../components/ProfilePicker';
@@ -16,9 +16,49 @@ import { useAuth } from '../context/AuthContext';
 
 const ACTIVE_STATES: ProjectStatus[] = ['levantamiento', 'desarrollo', 'validacion'];
 
+// "En tiempo" va en verde (no azul como antes) para no confundirse con el
+// azul del estado "En desarrollo" que está en la misma tarjeta.
 const DELAY_TONE: Record<DelayStatus, string> = {
-  completado: 'green', en_tiempo: 'blue', en_riesgo: 'gold', atrasado: 'rust',
+  completado: 'green', en_tiempo: 'green', en_riesgo: 'gold', atrasado: 'rust',
 };
+
+function initialsOf(name: string): string {
+  return name.split(/[\s,]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+}
+
+// Persona de la tarjeta: iniciales en círculo + rol + nombre. Sin nombre se
+// ve punteada y en cursiva, para que salte a la vista que falta asignarla.
+function PersonChip({ role, name }: { role: string; name: string | null | undefined }) {
+  const missing = !name;
+  return (
+    <div className="pcard-person">
+      <span className={`pcard-avatar${missing ? ' missing' : ''}`} aria-hidden="true">
+        {missing ? '—' : initialsOf(name)}
+      </span>
+      <span className="pcard-person-text">
+        <span className="pcard-person-role">{role}</span>
+        <span className={`pcard-person-name${missing ? ' missing' : ''}`} title={name ?? undefined}>
+          {missing ? 'Sin asignar' : name}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function ScheduleBadge({ status }: { status: DelayStatus }) {
+  return (
+    <span className={`pcard-badge tone-${DELAY_TONE[status]}`}>
+      {status === 'completado' ? (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+      ) : status === 'en_tiempo' ? (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+      ) : (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 9v4" /><path d="M12 17h.01" /><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
+      )}
+      {DELAY_STATUS_META[status]}
+    </span>
+  );
+}
 
 // Avance esperado automático (ítem 3b, vuelta 2): en vez de depender de que
 // cada tarea de fase tenga fechas asignadas (podían estar todas vacías en un
@@ -67,6 +107,20 @@ export default function ProjectsList() {
   // Filas con el desglose de avance por fase abierto -- se puede ver sin
   // tener que entrar al detalle del proyecto.
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
+  // Menú "⋯" abierto (uno a la vez). Eliminar vive ahí y no al lado de
+  // Editar, para que no se borre un proyecto por un clic de más.
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!menuOpenId) return;
+    const close = () => setMenuOpenId(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('click', close);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpenId]);
   // MyOffice es el único proveedor interno (sin cuenta, sin selector) -- se
   // resuelve una vez y se manda solo, en vez de pedirle al usuario que elija
   // entre proveedores que ya no existen como opción.
@@ -575,7 +629,7 @@ export default function ProjectsList() {
         </div>
       )}
 
-      <div className="proj-table">
+      <div className="proj-table pcard-list">
         {loading ? (
           <div className="empty-state">Cargando…</div>
         ) : visible.length === 0 ? (
@@ -588,93 +642,135 @@ export default function ProjectsList() {
           visible.map((p) => {
             const schedule = projectSchedule(p);
             return (
-            <div className="proj-row" key={p.id} onClick={() => navigate(`/projects/${p.id}`)} title="Ver detalle del proyecto">
-              <div className="proj-main">
-                <div className="proj-code">{p.code}</div>
-                <div className="proj-name">{p.name}</div>
-                <div className="proj-meta">
-                  <span className="proj-meta-item">
-                    <span className="proj-meta-label">{p.jefes.length > 1 ? 'Jefes' : 'Jefe'}</span>
-                    <span className="proj-meta-value">
-                      {p.jefes.length ? p.jefes.map((j) => j.nombre).join(', ') : 'Sin asignar'}
+            <article
+              className="pcard"
+              key={p.id}
+              onClick={() => navigate(`/projects/${p.id}`)}
+              title="Ver detalle del proyecto"
+            >
+              <div className="pcard-body">
+                <div className="pcard-main">
+                  <div className="pcard-tags" onClick={(e) => e.stopPropagation()}>
+                    <span className="pcard-code">{p.code}</span>
+                    <span className={`pcard-status ${p.status}`}>
+                      <span className="pcard-status-dot" aria-hidden="true" />
+                      <select
+                        value={p.status}
+                        disabled={!canManage}
+                        aria-label={`Estado del proyecto ${p.code}`}
+                        onChange={(e) => changeStatus(p.id, e.target.value as ProjectStatus)}
+                      >
+                        {Object.entries(STATUS_META).map(([k, label]) => (
+                          <option key={k} value={k}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
                     </span>
-                  </span>
-                  <span className="proj-meta-item">
-                    <span className="proj-meta-label">Asignado</span>
-                    <span className="proj-meta-value">{p.responsableNombre ?? 'Sin asignar'}</span>
-                  </span>
-                  <span className="proj-meta-item">
-                    <span className="proj-meta-label">Proveedor</span>
-                    <span className="proj-meta-value">{p.proveedor}</span>
-                  </span>
+                  </div>
+                  <h2 className="pcard-title">
+                    <Link to={`/projects/${p.id}`} onClick={(e) => e.stopPropagation()}>{p.name}</Link>
+                  </h2>
+                  <div className="pcard-people">
+                    <PersonChip
+                      role={p.jefes.length > 1 ? 'Jefes de proyecto' : 'Jefe de proyecto'}
+                      name={p.jefes.length ? p.jefes.map((j) => j.nombre).join(', ') : null}
+                    />
+                    <PersonChip role="Asignado" name={p.responsableNombre} />
+                    <PersonChip role="Proveedor" name={p.proveedor && p.proveedor !== 'Sin asignar' ? p.proveedor : null} />
+                  </div>
                 </div>
-              </div>
-              <div className="proj-side" onClick={(e) => e.stopPropagation()}>
-                <select
-                  className={`status-select ${p.status}`}
-                  value={p.status}
-                  disabled={!canManage}
-                  onChange={(e) => changeStatus(p.id, e.target.value as ProjectStatus)}
-                >
-                  {Object.entries(STATUS_META).map(([k, label]) => (
-                    <option key={k} value={k}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                <span
-                  className="proj-progress-compare"
-                  title="Avance real / avance esperado según el plazo -- clic para ver el desglose por sección"
-                  onClick={() => togglePhasesRow(p.id)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <span className="proj-pct">{p.stats?.pct ?? 0}%</span>
-                  {schedule && (
-                    <>
-                      <span className="proj-pct-sep">/</span>
-                      <span className="proj-pct-expected">{schedule.expectedPct}%</span>
-                      <span className={`delay-badge small tone-${DELAY_TONE[schedule.status]}`}>
-                        {DELAY_STATUS_META[schedule.status]}
-                      </span>
-                    </>
-                  )}
-                  <span className={`phases-toggle-chevron${expandedPhases.has(p.id) ? ' open' : ''}`}>▾</span>
-                </span>
-                {canManage && (
-                  <button className="btn small ghost" title="Editar jefe, persona asignada y proveedor" onClick={() => openEditActors(p)}>
-                    Editar
+
+                <div className="pcard-progress" onClick={(e) => e.stopPropagation()}>
+                  <div className="pcard-progress-head">
+                    <span className="pcard-eyebrow">Avance del proyecto</span>
+                    {schedule && <ScheduleBadge status={schedule.status} />}
+                  </div>
+                  <div className="pcard-progress-figures">
+                    <span className="pcard-pct">{p.stats?.pct ?? 0}%</span>
+                    <span className="pcard-pct-caption">
+                      {schedule ? (
+                        <>de avance real · <strong>{schedule.expectedPct}%</strong> esperado</>
+                      ) : (
+                        'de avance real · sin fecha de entrega'
+                      )}
+                    </span>
+                  </div>
+                  <div className="pcard-bar" aria-hidden="true">
+                    <span className="pcard-bar-track" />
+                    <span className="pcard-bar-fill" style={{ width: `${p.stats?.pct ?? 0}%` }} />
+                    {schedule && <span className="pcard-bar-marker" style={{ left: `${schedule.expectedPct}%` }} />}
+                  </div>
+                  <button
+                    type="button"
+                    className="pcard-toggle"
+                    aria-expanded={expandedPhases.has(p.id)}
+                    onClick={() => togglePhasesRow(p.id)}
+                  >
+                    {expandedPhases.has(p.id) ? 'Ocultar desglose por sección' : 'Ver desglose por sección'}
+                    <svg className={`pcard-chevron${expandedPhases.has(p.id) ? ' open' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                   </button>
-                )}
+                </div>
+
                 {canManage && (
-                  <button className="del-btn" title="Eliminar proyecto" onClick={() => deleteProject(p)}>
-                    ×
-                  </button>
+                  <div className="pcard-actions" onClick={(e) => e.stopPropagation()}>
+                    <button type="button" className="pcard-btn" title="Editar jefe, persona asignada y proveedor" onClick={() => openEditActors(p)}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                      Editar
+                    </button>
+                    <div className="pcard-menu-wrap">
+                      <button
+                        type="button"
+                        className="pcard-icon-btn"
+                        aria-label={`Más acciones para ${p.code}`}
+                        aria-haspopup="menu"
+                        aria-expanded={menuOpenId === p.id}
+                        onClick={() => setMenuOpenId((cur) => (cur === p.id ? null : p.id))}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="12" cy="19" r="1.8" /></svg>
+                      </button>
+                      {menuOpenId === p.id && (
+                        <div className="pcard-menu" role="menu">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="pcard-menu-item danger"
+                            onClick={() => { setMenuOpenId(null); deleteProject(p); }}
+                          >
+                            Eliminar proyecto
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
-              <div className="proj-bar-track">
-                <div className="proj-bar-fill" style={{ width: `${p.stats?.pct ?? 0}%` }} />
-              </div>
+
               {expandedPhases.has(p.id) && (
-                <div className="proj-phases-breakdown" onClick={(e) => e.stopPropagation()}>
+                <div className="pcard-breakdown" onClick={(e) => e.stopPropagation()}>
+                  <span className="pcard-eyebrow">Avance por sección · calculado de los checkpoints aprobados por QA</span>
                   {p.sections.length === 0 ? (
                     <span className="admin-hint" style={{ padding: 0 }}>Este proyecto no tiene secciones todavía.</span>
                   ) : (
-                    computeSectionProgress(p.sections).map((row) => (
-                      <div className="bar-row" key={row.id}>
-                        <span className="bar-label" title={row.title}>
-                          <span className="section-progress-code">{row.code}</span>
-                          {row.title}
-                        </span>
-                        <span className="bar-track2">
-                          <span className="bar-fill2" style={{ width: `${row.pct}%` }} />
-                        </span>
-                        <span className="bar-value">{row.pct}%</span>
-                      </div>
-                    ))
+                    <div className="pcard-sections">
+                      {computeSectionProgress(p.sections).map((row) => (
+                        <div className="pcard-section" key={row.id}>
+                          <div className="pcard-section-head">
+                            <span className="pcard-section-name">
+                              <span className="section-progress-code">{row.code}</span>
+                              <span className="pcard-section-title" title={row.title}>{row.title}</span>
+                            </span>
+                            <span className="pcard-section-pct">{row.pct}%</span>
+                          </div>
+                          <span className="pcard-section-bar"><span style={{ width: `${row.pct}%` }} /></span>
+                          <span className="pcard-section-count">{row.done} de {row.total} checkpoints completos</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
-            </div>
+            </article>
             );
           })
         )}
