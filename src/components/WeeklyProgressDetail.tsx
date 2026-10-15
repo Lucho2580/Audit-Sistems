@@ -30,8 +30,12 @@ function fmtSent(iso: string) {
   return new Date(iso).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 }
 
-// Estado de cada hito reportado, en una sola insignia (como en el diseño).
-function lineBadge(line: WeeklyMilestoneLine): { label: string; tone: string } {
+// Estado de cada hito de la semana, en una sola insignia (como en el diseño).
+function lineBadge(line: WeeklyMilestoneLine, weekOpen: boolean): { label: string; tone: string } {
+  if (!line.status) {
+    if (line.approved) return { label: 'Aprobado por QA', tone: 'green' };
+    return weekOpen ? { label: 'Por reportar', tone: 'slate' } : { label: 'No reportado', tone: 'rust' };
+  }
   if (line.status === 'cumplido') {
     if (line.qa === 'aprobado') return { label: 'Aprobado por QA', tone: 'green' };
     if (line.qa === 'rechazado') return { label: 'Rechazado por QA', tone: 'rust' };
@@ -100,7 +104,7 @@ export default function WeeklyProgressDetail({ projectId }: Props) {
         {items.length > 0 ? (
           <ul className="wmd-lines">
             {items.map((line) => {
-              const badge = lineBadge(line);
+              const badge = lineBadge(line, week.status === 'en_curso' || (isCurrent && week.status === 'reportado'));
               return (
                 <li className="wmd-line" key={line.code}>
                   <div className="wmd-line-head">
@@ -122,13 +126,22 @@ export default function WeeklyProgressDetail({ projectId }: Props) {
             })}
           </ul>
         ) : (
-          <p className="wmd-empty">
-            {week.status === 'perdida'
-              ? 'La persona asignada no reportó esta semana (se pasó el plazo del sábado 12:00 pm).'
-              : week.status === 'en_curso'
-                ? 'Todavía no hay reporte para esta semana.'
-                : 'Esta semana no tenía hitos con fecha.'}
-          </p>
+          <div className="wmd-empty">
+            <span>No vencía ningún hito esta semana.</span>
+            {detail.undatedCount > 0 && (
+              <span className="wmd-empty-warn">
+                El proyecto tiene {detail.undatedCount} hito(s) sin fecha: hay que asignarles una en el detalle del proyecto para poder medirlos.
+              </span>
+            )}
+            {isCurrent && (detail.nextItems ?? []).length > 0 && (
+              <span>
+                Próximos: {detail.nextItems.map((n) => `${n.code} (${fmtDay(n.dueDate)})`).join(', ')}.
+              </span>
+            )}
+          </div>
+        )}
+        {week.status === 'perdida' && (
+          <p className="wmd-general rejected">La persona asignada no reportó esta semana (se pasó el plazo del sábado 12:00 pm).</p>
         )}
         {week.note && (
           <p className="wmd-general"><b>Comentario general:</b> {week.note}</p>

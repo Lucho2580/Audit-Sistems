@@ -357,13 +357,15 @@ export interface WeeklyProgressEntry {
 
 export type MilestoneReportStatus = 'cumplido' | 'en_curso' | 'sin_avance';
 
-// Línea de un reporte semanal: un hito (checkpoint con fecha) y lo que la
-// persona asignada reportó de él esa semana.
+// Hito de una semana (checkpoint con fecha que vencía en ella, o atrasado
+// reportado esa semana) y lo que la persona asignada reportó de él --
+// status null = no se reportó.
 export interface WeeklyMilestoneLine {
   code: string;
   title: string;
   dueDate: string;
-  status: MilestoneReportStatus;
+  status: MilestoneReportStatus | null;
+  approved: boolean; // el checkpoint ya está aprobado por QA (100%)
   note: string | null;
   late: boolean; // venció en una semana anterior (se reportó como atrasado)
   qa: 'aprobado' | 'rechazado' | 'pendiente' | null;
@@ -417,6 +419,8 @@ export interface WeeklyProgressDetail {
   weeksRemainingYear: number;
   frozen: boolean;
   weeks: WeeklyProgressWeek[];
+  undatedCount: number;
+  nextItems: { code: string; title: string; dueDate: string }[];
 }
 
 export interface WeeklyProgressOverviewRow {

@@ -347,7 +347,9 @@ a.pcard-btn{text-decoration:none;}
 .wmd-line-title{font-size:13.5px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .wmd-line-note{font-size:12.5px;line-height:1.5;color:var(--ink-soft);}
 .wmd-line-note.rejected{color:var(--danger);}
-.wmd-empty{margin:0;font-size:13px;color:var(--ink-soft);background:var(--card);border:1px dashed var(--hairline-strong);border-radius:6px;padding:12px 14px;}
+.wmd-empty{margin:0;font-size:13px;line-height:1.5;color:var(--ink-soft);background:var(--card);border:1px dashed var(--hairline-strong);border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;}
+.wmd-empty-warn{color:#7A5410;font-weight:500;}
+.wmd-general.rejected{color:var(--danger);}
 .wmd-general{margin:0;font-size:13px;line-height:1.5;color:var(--ink-soft);}
 .wmd-general b{color:var(--ink);font-weight:600;}
 .wmd-table{background:var(--card);border:1px solid var(--hairline);border-radius:6px;overflow:hidden;}
