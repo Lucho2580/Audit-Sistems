@@ -7,7 +7,7 @@ interface Props {
 }
 
 const STATUS_COLOR: Record<DelayStatus, string> = {
-  completado: 'var(--green)', en_tiempo: 'var(--blue)', en_riesgo: 'var(--gold)', atrasado: 'var(--rust)',
+  completado: 'var(--green)', en_tiempo: 'var(--blue)', atrasado: 'var(--rust)',
 };
 const LABEL_COL = 260;
 const DAY_MS = 86400000;

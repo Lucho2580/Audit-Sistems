@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { WeeklyProgressApi } from '../lib/services';
-import type { WeeklyProgressDetail as WeeklyProgressDetailData, WeeklyProgressWeek } from '../types/domain';
+import type { MilestoneReportStatus, WeeklyMilestoneLine, WeeklyProgressDetail as WeeklyProgressDetailData, WeeklyProgressWeek } from '../types/domain';
 
 interface Props {
   projectId: string;
@@ -29,6 +29,19 @@ const WEEK_META: Record<WeeklyProgressWeek['status'], { tone: string; icon: stri
   en_curso: { tone: 'blue', icon: '···', label: 'En curso' },
 };
 
+const LINE_META: Record<MilestoneReportStatus, { tone: string; label: string }> = {
+  cumplido: { tone: 'green', label: 'Cumplido' },
+  en_curso: { tone: 'gold', label: 'En curso' },
+  sin_avance: { tone: 'rust', label: 'Sin avance' },
+};
+
+function qaLabel(line: WeeklyMilestoneLine): string | null {
+  if (line.status !== 'cumplido') return null;
+  if (line.qa === 'aprobado') return 'Aprobado por QA';
+  if (line.qa === 'rechazado') return 'Rechazado por QA';
+  return 'Pendiente de QA';
+}
+
 export default function WeeklyProgressDetail({ projectId }: Props) {
   const [detail, setDetail] = useState<WeeklyProgressDetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,8 +65,9 @@ export default function WeeklyProgressDetail({ projectId }: Props) {
   if (!detail) return <div className="empty-state">No se pudo cargar el detalle.</div>;
 
   const tone = indicatorTone(detail.indicator);
-  const reportedWeeks = detail.weeks.filter((w) => w.status === 'reportado' && w.percentAvanzado !== null);
-  const maxPct = Math.max(10, ...reportedWeeks.map((w) => w.percentAvanzado ?? 0));
+  // Semanas con hitos (planeados según su fecha) -- la gráfica muestra
+  // cumplidos / planeados de cada una.
+  const milestoneWeeks = detail.weeks.filter((w) => (w.milestonesTotal ?? 0) > 0);
   const selectedWeekData = detail.weeks.find((w) => w.weekStart === selectedWeek) ?? null;
 
   return (
@@ -125,12 +139,51 @@ export default function WeeklyProgressDetail({ projectId }: Props) {
                       {selectedWeekData.percentAvanzado !== null && ` · ${selectedWeekData.percentAvanzado}%`}
                     </span>
                   </div>
+                  {(selectedWeekData.milestonesTotal ?? 0) > 0 && (
+                    <p className="weekly-week-detail-note">
+                      Hitos: <b>{selectedWeekData.milestonesDone} de {selectedWeekData.milestonesTotal}</b> cumplidos ·{' '}
+                      {selectedWeekData.milestonesApproved} aprobados por QA.
+                    </p>
+                  )}
+                  {(selectedWeekData.items ?? []).length > 0 && (
+                    <ul className="wd-lines">
+                      {selectedWeekData.items.map((line) => (
+                        <li key={line.code} className="wd-line">
+                          <div className="wd-line-head">
+                            <span className="wd-line-name">
+                              <span className="section-progress-code">{line.code}</span>
+                              {line.title}
+                              <span className={`wr-due${line.late ? ' late' : ''}`}>
+                                {line.late ? ` · venció ${fmtDate(line.dueDate)}` : ` · vence ${fmtDate(line.dueDate)}`}
+                              </span>
+                            </span>
+                            <span className="wd-line-badges">
+                              <span className={`pcard-badge tone-${LINE_META[line.status].tone}`}>
+                                {LINE_META[line.status].label}
+                              </span>
+                              {qaLabel(line) && (
+                                <span className={`pcard-badge ${line.qa === 'rechazado' ? 'tone-rust' : line.qa === 'aprobado' ? 'tone-green' : 'tone-slate'}`}>
+                                  {qaLabel(line)}
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                          {line.note && <span className="wd-line-note">“{line.note}”</span>}
+                          {line.qa === 'rechazado' && line.qaReason && (
+                            <span className="wd-line-note rejected">Motivo del rechazo: {line.qaReason}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <p className="weekly-week-detail-note">
                     {selectedWeekData.note
                       ? selectedWeekData.note
                       : selectedWeekData.status === 'perdida'
                         ? 'La persona asignada no reportó nada esta semana (se pasó el plazo del sábado 12:00 pm).'
-                        : 'Todavía no hay reporte para esta semana.'}
+                        : selectedWeekData.status === 'reportado'
+                          ? 'Sin comentario general.'
+                          : 'Todavía no hay reporte para esta semana.'}
                   </p>
                 </div>
               )}
@@ -139,18 +192,18 @@ export default function WeeklyProgressDetail({ projectId }: Props) {
         </div>
 
         <div className="dash-card">
-          <div className="dash-card-title">Avance reportado por semana</div>
-          {reportedWeeks.length === 0 ? (
-            <div className="empty-state">Todavía no hay reportes.</div>
+          <div className="dash-card-title">Hitos cumplidos por semana</div>
+          {milestoneWeeks.length === 0 ? (
+            <div className="empty-state">Todavía no hay hitos con fecha en las semanas rastreadas.</div>
           ) : (
             <div className="bar-chart">
-              {reportedWeeks.map((w) => (
+              {milestoneWeeks.map((w) => (
                 <div className="weekly-trend-row" key={w.weekStart}>
                   <span className="weekly-trend-label">{fmtDate(w.weekStart)}</span>
                   <span className="bar-track2">
-                    <span className="bar-fill2" style={{ width: `${Math.max(3, ((w.percentAvanzado ?? 0) / maxPct) * 100)}%` }} />
+                    <span className="bar-fill2" style={{ width: `${Math.max(3, (w.milestonesDone / w.milestonesTotal) * 100)}%` }} />
                   </span>
-                  <span className="weekly-trend-value">{w.percentAvanzado}%</span>
+                  <span className="weekly-trend-value">{w.milestonesDone}/{w.milestonesTotal}</span>
                 </div>
               ))}
             </div>

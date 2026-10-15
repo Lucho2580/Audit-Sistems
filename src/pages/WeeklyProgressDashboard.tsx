@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import PersonChip from '../components/PersonChip';
 import WeeklyProgressDetail from '../components/WeeklyProgressDetail';
-import { WeeklyProgressApi } from '../lib/services';
+import { ProvidersApi, WeeklyProgressApi } from '../lib/services';
 import { STATUS_META, type WeeklyProgressOverviewRow } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,6 +11,10 @@ function indicatorTone(indicator: number): 'green' | 'gold' | 'rust' {
   if (indicator >= 70) return 'green';
   if (indicator >= 40) return 'gold';
   return 'rust';
+}
+
+function fmtShortDate(iso: string) {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 type WeekState = 'cerrado' | 'reportado' | 'pendiente' | 'vencido';
@@ -53,17 +57,46 @@ export default function WeeklyProgressDashboard() {
   const [rows, setRows] = useState<WeeklyProgressOverviewRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
+  const [providerOf, setProviderOf] = useState<Record<string, string>>({});
+  const [search, setSearch] = useState('');
+  const [providerFilter, setProviderFilter] = useState('');
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        setRows(await WeeklyProgressApi.listOverview());
+        const [overview, providers] = await Promise.all([
+          WeeklyProgressApi.listOverview(),
+          ProvidersApi.byProject().catch(() => ({} as Record<string, string>)),
+        ]);
+        // Solo proyectos abiertos: los cerrados ya no reportan (su indicador
+        // queda congelado), así que no tiene sentido seguirlos aquí.
+        setRows(overview.filter((r) => r.status !== 'cerrado'));
+        setProviderOf(providers);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
+
+  // Opciones del filtro: los mismos proveedores de "Proyectos por proveedor",
+  // contados solo sobre los proyectos que aparecen aquí, de más a menos.
+  const providerOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      const name = providerOf[r.projectId] ?? 'Sin asignar';
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'es'));
+  }, [rows, providerOf]);
+
+  const normalize = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const query = normalize(search.trim());
+  const visible = rows.filter((r) => {
+    if (providerFilter && (providerOf[r.projectId] ?? 'Sin asignar') !== providerFilter) return false;
+    if (!query) return true;
+    return normalize(`${r.code} ${r.name} ${r.responsableNombre ?? ''} ${providerOf[r.projectId] ?? ''}`).includes(query);
+  });
 
   if (profile && profile.role !== 'admin' && profile.role !== 'superadmin') {
     return <Navigate to="/" replace />;
@@ -79,9 +112,46 @@ export default function WeeklyProgressDashboard() {
           <h1>Informe semanal de avance</h1>
           <p className="sub">
             Cumplimiento de reportes semanales por proyecto. El indicador baja cuando la persona
-            asignada no reporta antes del plazo (sábado 12:00 pm); se congela cuando el proyecto
-            se marca "Cerrado". Abre el detalle de un proyecto para verlo semana a semana.
+            asignada no reporta antes del plazo (sábado 12:00 pm). Cada semana se mide contra los
+            hitos que vencen en ella: la persona reporta cuáles cumplió y QA los aprueba. Solo se
+            muestran los proyectos que no están cerrados.
           </p>
+        </div>
+      </div>
+
+      <div className="toolbar">
+        <div className="filters">
+          <input
+            type="search"
+            className="filter-search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por proyecto, código o responsable…"
+            aria-label="Buscar proyectos"
+          />
+          <select
+            className="filter-select"
+            value={providerFilter}
+            onChange={(e) => setProviderFilter(e.target.value)}
+            aria-label="Filtrar por proveedor"
+          >
+            <option value="">Proveedor: todos</option>
+            {providerOptions.map(([name, count]) => (
+              <option key={name} value={name}>
+                {name} ({count})
+              </option>
+            ))}
+          </select>
+          {!loading && (
+            <span className="filter-note">
+              {visible.length === rows.length ? `${rows.length} proyectos abiertos` : `${visible.length} de ${rows.length} proyectos`}
+            </span>
+          )}
+          {(search || providerFilter) && (
+            <button className="btn ghost small" onClick={() => { setSearch(''); setProviderFilter(''); }}>
+              Limpiar filtros ×
+            </button>
+          )}
         </div>
       </div>
 
@@ -89,9 +159,11 @@ export default function WeeklyProgressDashboard() {
         {loading ? (
           <div className="empty-state">Cargando…</div>
         ) : rows.length === 0 ? (
-          <div className="empty-state">No hay proyectos visibles.</div>
+          <div className="empty-state">No hay proyectos abiertos.</div>
+        ) : visible.length === 0 ? (
+          <div className="empty-state">Ningún proyecto coincide con la búsqueda o el filtro.</div>
         ) : (
-          rows.map((r) => {
+          visible.map((r) => {
             const isOpen = r.projectId === selected;
             const tone = indicatorTone(r.indicator);
             const toggle = () => setSelected(isOpen ? null : r.projectId);
@@ -114,26 +186,54 @@ export default function WeeklyProgressDashboard() {
                     </div>
                   </div>
 
-                  <div className="pcard-progress" onClick={(e) => e.stopPropagation()}>
-                    <div className="pcard-progress-head">
-                      <span className="pcard-eyebrow">Cumplimiento de reportes</span>
+                  <div className="pcard-progress weekly-metrics" onClick={(e) => e.stopPropagation()}>
+                    <div className="weekly-metric">
+                      <span className="pcard-eyebrow">Hitos de la semana</span>
+                      {r.weekMilestonesTotal > 0 ? (
+                        <>
+                          <div className="pcard-progress-figures">
+                            <span className="pcard-pct">{r.weekMilestonesDone}/{r.weekMilestonesTotal}</span>
+                            <span className="pcard-pct-caption">cumplidos</span>
+                          </div>
+                          <span className="pcard-section-bar"><span style={{ width: `${Math.round((r.weekMilestonesDone / r.weekMilestonesTotal) * 100)}%` }} /></span>
+                        </>
+                      ) : r.nextDueDate ? (
+                        <span className="weekly-metric-text">
+                          No vence ningún hito esta semana. Próximo: {r.nextDueCode}, {fmtShortDate(r.nextDueDate)}.
+                        </span>
+                      ) : r.undatedCount > 0 ? (
+                        <>
+                          <span className="pcard-badge tone-gold">{r.undatedCount} hitos sin fecha</span>
+                          <span className="weekly-metric-text">Sin fechas no hay contra qué medir la semana.</span>
+                          <Link className="weekly-metric-link" to={`/projects/${r.projectId}`}>Asignar fechas a los hitos →</Link>
+                        </>
+                      ) : (
+                        <span className="weekly-metric-text">No hay hitos pendientes.</span>
+                      )}
+                      {r.overdueCount > 0 && (
+                        <span className="weekly-metric-late">
+                          {r.overdueCount === 1 ? '1 hito atrasado' : `${r.overdueCount} hitos atrasados`} de semanas anteriores
+                        </span>
+                      )}
+                    </div>
+                    <div className="weekly-metric">
+                      <span className="pcard-eyebrow">Reportes a tiempo</span>
+                      <div className="pcard-progress-figures">
+                        <span className="pcard-pct">{r.indicator}%</span>
+                      </div>
+                      <div className="pcard-bar" aria-hidden="true">
+                        <span className="pcard-bar-track" />
+                        <span className={`pcard-bar-fill weekly-fill tone-${tone}`} style={{ width: `${Math.min(100, r.indicator)}%` }} />
+                      </div>
                       <WeekBadge state={weekState(r, now)} />
-                    </div>
-                    <div className="pcard-progress-figures">
-                      <span className="pcard-pct">{r.indicator}%</span>
-                      <span className="pcard-pct-caption">de semanas reportadas a tiempo</span>
-                    </div>
-                    <div className="pcard-bar" aria-hidden="true">
-                      <span className="pcard-bar-track" />
-                      <span className={`pcard-bar-fill weekly-fill tone-${tone}`} style={{ width: `${Math.min(100, r.indicator)}%` }} />
                     </div>
                     <button
                       type="button"
-                      className="pcard-toggle"
+                      className="pcard-toggle weekly-metrics-toggle"
                       aria-expanded={isOpen}
                       onClick={toggle}
                     >
-                      {isOpen ? 'Ocultar detalle semana a semana' : 'Ver detalle semana a semana'}
+                      {isOpen ? 'Ocultar detalle de hitos y semanas' : 'Ver detalle de hitos y semanas'}
                       <svg className={`pcard-chevron${isOpen ? ' open' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                     </button>
                   </div>
@@ -142,7 +242,7 @@ export default function WeeklyProgressDashboard() {
                 {isOpen && (
                   <div className="pcard-breakdown" onClick={(e) => e.stopPropagation()}>
                     <div className="weekly-card-detail-head">
-                      <span className="pcard-eyebrow">Detalle semana a semana</span>
+                      <span className="pcard-eyebrow">Hitos y semanas</span>
                       <Link className="pcard-btn" to={`/projects/${r.projectId}`}>
                         Ver proyecto
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>

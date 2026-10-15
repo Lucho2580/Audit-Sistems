@@ -18,7 +18,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 
 const DELAY_TONE: Record<string, string> = {
-  completado: 'green', en_tiempo: 'blue', en_riesgo: 'gold', atrasado: 'rust',
+  completado: 'green', en_tiempo: 'blue', atrasado: 'rust',
 };
 
 export default function ProjectDetail() {

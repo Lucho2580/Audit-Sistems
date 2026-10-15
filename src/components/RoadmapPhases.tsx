@@ -16,7 +16,7 @@ const PHASE_COLORS = [
   'var(--slate)', 'var(--ink-soft)', 'var(--blue)', 'var(--gold)',
 ];
 const TASK_STATUS_COLOR: Record<string, string> = {
-  completado: 'var(--green)', en_tiempo: 'var(--blue)', en_riesgo: 'var(--gold)', atrasado: 'var(--rust)',
+  completado: 'var(--green)', en_tiempo: 'var(--blue)', atrasado: 'var(--rust)',
 };
 const LABEL_COL = 160;
 const DAY_MS = 86400000;

@@ -2,8 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { WeeklyProgressApi } from '../lib/services';
 import type { WeeklyProgressOverviewRow } from '../types/domain';
-
-const PERCENT_STEPS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+import WeeklyReportForm from './WeeklyReportForm';
 
 // Se monta UNA vez alrededor de todas las rutas (no dentro de cada
 // PrivateRoute), para que el chequeo no se repita en cada navegación --  solo
@@ -19,10 +18,6 @@ export default function WeeklyProgressGate({ children }: { children: ReactNode }
   const { session, profile } = useAuth();
   const [checked, setChecked] = useState(false);
   const [pending, setPending] = useState<WeeklyProgressOverviewRow[]>([]);
-  const [percent, setPercent] = useState(0);
-  const [note, setNote] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     // Esta puerta va ANTES que las rutas, pero el cambio de contraseña
@@ -44,8 +39,6 @@ export default function WeeklyProgressGate({ children }: { children: ReactNode }
         (r) => r.status !== 'cerrado' && !r.currentWeekSubmitted && now <= new Date(r.currentWeekDeadline).getTime(),
       );
       setPending(pend);
-      setPercent(0);
-      setNote('');
     } finally {
       setChecked(true);
     }
@@ -60,26 +53,9 @@ export default function WeeklyProgressGate({ children }: { children: ReactNode }
   const current = pending[0] ?? null;
   if (!current) return <>{children}</>;
 
-  async function submit() {
-    if (!note.trim()) {
-      setError('Describe qué se avanzó esta semana (o escribe que no hubo avance).');
-      return;
-    }
-    setError(null);
-    setSaving(true);
-    try {
-      await WeeklyProgressApi.submit(current!.projectId, percent, note.trim());
-      await refresh();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <div className="modal-overlay">
-      <div className="modal-card">
+      <div className="modal-card wr-modal-card">
         <div className="modal-head">
           <div>
             <div className="modal-kicker">Reporte semanal pendiente</div>
@@ -89,37 +65,20 @@ export default function WeeklyProgressGate({ children }: { children: ReactNode }
         </div>
         <div className="modal-body">
           <p className="modal-intro">
-            Antes de continuar, reporta el avance de esta semana para <b>{current.code}</b>. Tienes hasta
+            Antes de continuar, reporta cómo van los hitos de <b>{current.code}</b> esta semana. Tienes hasta
             el sábado 12:00 pm (hora Colombia).
             {pending.length > 1 && ` Después de este te van a faltar ${pending.length - 1} proyecto(s) más.`}
           </p>
-          {error && <div className="auth-error">{error}</div>}
-          <div className="modal-fields">
-            <div className="modal-field">
-              <label>¿Cuánto avanzaste esta semana?</label>
-              <select value={percent} onChange={(e) => setPercent(Number(e.target.value))}>
-                {PERCENT_STEPS.map((v) => (
-                  <option key={v} value={v}>{v === 0 ? '0% — no avancé nada' : `${v}%`}</option>
-                ))}
-              </select>
-            </div>
-            <div className="modal-field">
-              <label>¿Qué se hizo esta semana?</label>
-              <textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Describe el avance (o por qué no hubo avance)…"
-              />
-            </div>
-          </div>
+          <WeeklyReportForm
+            key={current.projectId}
+            projectId={current.projectId}
+            variant="modal"
+            allowEditAfterSubmit={false}
+            onSubmitted={refresh}
+          />
         </div>
         <div className="modal-foot">
           <span className="modal-foot-hint">Este reporte es obligatorio para seguir usando el sistema.</span>
-          <div className="modal-foot-actions">
-            <button className="btn" onClick={submit} disabled={saving}>
-              {saving ? 'Guardando…' : 'Enviar reporte semanal'}
-            </button>
-          </div>
         </div>
       </div>
     </div>

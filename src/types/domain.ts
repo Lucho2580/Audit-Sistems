@@ -182,12 +182,13 @@ export interface PhaseTask {
   observaciones: string | null;
 }
 
-export type DelayStatus = 'completado' | 'en_tiempo' | 'en_riesgo' | 'atrasado';
+// Tres estados de plazo: completada, a tiempo o atrasada (ya no hay un
+// "en riesgo" intermedio).
+export type DelayStatus = 'completado' | 'en_tiempo' | 'atrasado';
 
 export const DELAY_STATUS_META: Record<DelayStatus, string> = {
   completado: 'Completada',
-  en_tiempo: 'En tiempo',
-  en_riesgo: 'En riesgo',
+  en_tiempo: 'A tiempo',
   atrasado: 'Atrasada',
 };
 
@@ -206,8 +207,9 @@ export function taskExpectedPct(
   return Math.min(100, (elapsedDays / totalDays) * 100);
 }
 
-// Brecha = esperado - real. Sin fechas, no hay forma de calcular atraso
-// (queda "en_tiempo" por defecto).
+// Brecha = esperado - real, con 5 puntos de tolerancia: hasta 5 por debajo
+// de lo esperado sigue "a tiempo"; más que eso, "atrasada". Sin fechas, no
+// hay forma de calcular atraso (queda "en_tiempo" por defecto).
 export function taskDelayStatus(
   task: Pick<PhaseTask, 'percent' | 'startDate' | 'plannedEndDate'>,
   today: Date = new Date(),
@@ -216,14 +218,11 @@ export function taskDelayStatus(
   const expectedPct = taskExpectedPct(task, today);
   if (expectedPct === null) return 'en_tiempo';
   const gap = expectedPct - task.percent;
-  if (gap <= 5) return 'en_tiempo';
-  if (gap <= 20) return 'en_riesgo';
-  return 'atrasado';
+  return gap <= 5 ? 'en_tiempo' : 'atrasado';
 }
 
 export function worstDelayStatus(statuses: DelayStatus[]): DelayStatus {
   if (statuses.some((s) => s === 'atrasado')) return 'atrasado';
-  if (statuses.some((s) => s === 'en_riesgo')) return 'en_riesgo';
   if (statuses.length > 0 && statuses.every((s) => s === 'completado')) return 'completado';
   return 'en_tiempo';
 }
@@ -356,11 +355,57 @@ export interface WeeklyProgressEntry {
   submittedAt: string;
 }
 
+export type MilestoneReportStatus = 'cumplido' | 'en_curso' | 'sin_avance';
+
+// Línea de un reporte semanal: un hito (checkpoint con fecha) y lo que la
+// persona asignada reportó de él esa semana.
+export interface WeeklyMilestoneLine {
+  code: string;
+  title: string;
+  dueDate: string;
+  status: MilestoneReportStatus;
+  note: string | null;
+  late: boolean; // venció en una semana anterior (se reportó como atrasado)
+  qa: 'aprobado' | 'rechazado' | 'pendiente' | null;
+  qaReason: string | null;
+}
+
 export interface WeeklyProgressWeek {
   weekStart: string;
   status: 'reportado' | 'perdida' | 'en_curso';
   percentAvanzado: number | null;
   note: string | null;
+  submittedAt: string | null;
+  milestonesTotal: number;
+  milestonesDone: number;
+  milestonesApproved: number;
+  items: WeeklyMilestoneLine[];
+}
+
+// Formulario del reporte de la semana en curso (get_weekly_report_form).
+export interface WeeklyReportFormItem {
+  itemId: string;
+  code: string;
+  title: string;
+  dueDate: string;
+  approved?: boolean; // ya aprobado por QA: no se pide de nuevo
+  pendingQa?: boolean; // reportado cumplido en otro reporte, esperando a QA
+  daysLate?: number;
+  status: MilestoneReportStatus | null;
+  note: string | null;
+}
+
+export interface WeeklyReportForm {
+  weekStart: string;
+  weekEnd: string;
+  deadline: string;
+  isOpen: boolean;
+  submittedAt: string | null;
+  note: string;
+  weekItems: WeeklyReportFormItem[];
+  overdueItems: WeeklyReportFormItem[];
+  nextItems: { code: string; title: string; dueDate: string }[];
+  undatedCount: number;
 }
 
 export interface WeeklyProgressDetail {
@@ -384,6 +429,12 @@ export interface WeeklyProgressOverviewRow {
   currentWeekStart: string;
   currentWeekSubmitted: boolean;
   currentWeekDeadline: string;
+  weekMilestonesTotal: number;
+  weekMilestonesDone: number;
+  overdueCount: number;
+  undatedCount: number;
+  nextDueDate: string | null;
+  nextDueCode: string | null;
 }
 
 const BOGOTA_OFFSET_MS = 5 * 3600000; // Colombia: UTC-5 todo el año, sin horario de verano.

@@ -17,11 +17,33 @@ import { useAuth } from '../context/AuthContext';
 
 const ACTIVE_STATES: ProjectStatus[] = ['levantamiento', 'desarrollo', 'validacion'];
 
-// "En tiempo" va en verde (no azul como antes) para no confundirse con el
+// "A tiempo" va en verde (no azul como antes) para no confundirse con el
 // azul del estado "En desarrollo" que está en la misma tarjeta.
 const DELAY_TONE: Record<DelayStatus, string> = {
-  completado: 'green', en_tiempo: 'green', en_riesgo: 'gold', atrasado: 'rust',
+  completado: 'green', en_tiempo: 'green', atrasado: 'rust',
 };
+
+// Selector de proveedor: solo los registrados en Usuarios -> Proveedores.
+// Si el proyecto trae un proveedor escrito a mano que no está registrado
+// (proyectos viejos), se muestra como opción aparte para no perderlo al
+// guardar, marcado "no registrado".
+function ProviderSelect({ id, value, providers, onChange }: {
+  id: string;
+  value: string;
+  providers: { id: string; name: string }[];
+  onChange: (name: string) => void;
+}) {
+  const unregistered = value && !providers.some((p) => p.name === value) ? value : null;
+  return (
+    <select id={id} className="modal-select" value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">Sin asignar</option>
+      {providers.map((p) => (
+        <option key={p.id} value={p.name}>{p.name}</option>
+      ))}
+      {unregistered && <option value={unregistered}>{unregistered} (no registrado)</option>}
+    </select>
+  );
+}
 
 function ScheduleBadge({ status }: { status: DelayStatus }) {
   return (
@@ -61,7 +83,7 @@ interface ActorForm {
   clientes: ProfileLite[];
   startDate: string;
   deadlineDate: string;
-  proveedor: string; // solo en "Editar actores"; vacío = Sin asignar
+  proveedor: string; // nombre de un proveedor registrado; vacío = Sin asignar
 }
 
 const EMPTY_FORM: ActorForm = { name: '', jefes: [], responsable: null, clientes: [], startDate: '', deadlineDate: '', proveedor: '' };
@@ -100,11 +122,11 @@ export default function ProjectsList() {
       document.removeEventListener('keydown', onKey);
     };
   }, [menuOpenId]);
-  // MyOffice es el único proveedor interno (sin cuenta, sin selector) -- se
-  // resuelve una vez y se manda solo, en vez de pedirle al usuario que elija
-  // entre proveedores que ya no existen como opción.
-  const [myOfficeProviderId, setMyOfficeProviderId] = useState<string | null>(null);
-  const [providerNames, setProviderNames] = useState<string[]>([]);
+  // Proveedores registrados en Usuarios -> Proveedores: son las únicas
+  // opciones del selector al crear o editar un proyecto. MyOffice (el
+  // interno) viene preseleccionado al crear, y lo sigue usando la importación.
+  const [providers, setProviders] = useState<{ id: string; name: string }[]>([]);
+  const myOfficeProviderId = providers.find((p) => p.name === 'MyOffice')?.id ?? providers[0]?.id ?? null;
   const navigate = useNavigate();
   const { profile } = useAuth();
   // El asignado (desarrollador) ya no puede cambiar el estado ni borrar
@@ -114,11 +136,8 @@ export default function ProjectsList() {
 
   useEffect(() => {
     ProvidersApi.list()
-      .then((list) => {
-        setMyOfficeProviderId(list.find((p) => p.name === 'MyOffice')?.id ?? list[0]?.id ?? null);
-        setProviderNames(list.map((p) => p.name));
-      })
-      .catch(() => setMyOfficeProviderId(null));
+      .then((list) => setProviders(list))
+      .catch(() => setProviders([]));
   }, []);
 
   async function load() {
@@ -133,18 +152,6 @@ export default function ProjectsList() {
   }, []);
 
   const normalizedSearch = nameSearch.trim().toLowerCase();
-  // Sugerencias del campo Proveedor: la tabla de proveedores más los nombres
-  // que ya tienen los proyectos (la mayoría solo existe como texto ahí).
-  const providerSuggestions = useMemo(() => {
-    const byKey = new Map<string, string>();
-    for (const name of [...providerNames, ...projects.map((p) => p.proveedor)]) {
-      const clean = (name ?? '').trim();
-      if (!clean || clean.toLowerCase() === 'sin asignar') continue;
-      if (!byKey.has(clean.toLowerCase())) byKey.set(clean.toLowerCase(), clean);
-    }
-    return [...byKey.values()].sort((a, b) => a.localeCompare(b, 'es'));
-  }, [providerNames, projects]);
-
   const visible = projects.filter(
     (p) =>
       (statusFilters.size === 0 || statusFilters.has(p.status)) &&
@@ -237,7 +244,6 @@ export default function ProjectsList() {
     if (!form.name.trim()) errors.name = 'Ingresa un nombre para el proyecto.';
     if (!form.jefes.length) errors.jefe = 'Elige al menos un jefe de proyecto.';
     if (!form.responsable) errors.responsable = 'Elige quién es la persona asignada.';
-    if (!myOfficeProviderId) errors.proveedor = 'No se encontró el proveedor interno (MyOffice) -- revisa en Herramientas.';
     if (form.startDate && form.deadlineDate && form.deadlineDate <= form.startDate) {
       errors.deadlineDate = 'La fecha de entrega esperada debe ser posterior a la fecha de inicio.';
     }
@@ -246,20 +252,21 @@ export default function ProjectsList() {
 
     setCreating(true);
     try {
+      const chosen = providers.find((pr) => pr.name === form.proveedor) ?? null;
       const { id } = await ProjectsApi.create({
-        name: form.name.trim(), proveedor: 'MyOffice',
+        name: form.name.trim(), proveedor: chosen?.name ?? 'Sin asignar',
         startDate: form.startDate || null, deadlineDate: form.deadlineDate || null,
       });
+      // proveedorId null = "Sin asignar" (set_project_actors no toca el proveedor).
       await ProjectsApi.setActors(id, {
         responsableId: form.responsable!.id,
-        proveedorId: myOfficeProviderId!,
+        proveedorId: chosen?.id ?? null,
       });
       for (const jefe of form.jefes) {
         await ProjectsApi.addJefe(id, jefe.id);
       }
-      for (const cliente of form.clientes) {
-        await ProjectsApi.addClient(id, cliente.id);
-      }
+      // Los clientes ya no se eligen al crear (se pueden agregar después en
+      // "Editar actores").
       setForm(EMPTY_FORM);
       setFormErrors({});
       setShowIntake(false);
@@ -427,7 +434,17 @@ export default function ProjectsList() {
             </button>
           )}
           {canCreate && (
-            <button className="btn" onClick={() => setShowIntake((s) => !s)}>
+            <button
+              className="btn"
+              onClick={() => {
+                // Proyecto nuevo: MyOffice (el proveedor interno) preseleccionado,
+                // salvo que ya se haya elegido otro en este formulario.
+                if (!showIntake && !form.proveedor && providers.some((pr) => pr.name === 'MyOffice')) {
+                  setForm((f) => ({ ...f, proveedor: 'MyOffice' }));
+                }
+                setShowIntake((v) => !v);
+              }}
+            >
               + Nuevo proyecto
             </button>
           )}
@@ -456,9 +473,8 @@ export default function ProjectsList() {
             </div>
             <div className="modal-body">
               <p className="modal-intro">
-                El código se asigna automáticamente al guardar. El proveedor interno queda fijo
-                (MyOffice); el jefe, la persona asignada y el cliente se eligen entre las cuentas
-                creadas en Herramientas.
+                El código se asigna automáticamente al guardar. El proveedor se elige entre los
+                registrados en Usuarios → Proveedores.
               </p>
               <div className="modal-fields">
                 <div className={`modal-field${formErrors.name ? ' has-error' : ''}`}>
@@ -490,16 +506,14 @@ export default function ProjectsList() {
                   />
                   {formErrors.responsable && <span className="field-error">{formErrors.responsable}</span>}
                 </div>
-                <div className={`modal-field${formErrors.cliente ? ' has-error' : ''}`}>
-                  <label>Clientes</label>
-                  <MultiProfilePicker
-                    role="cliente"
-                    value={form.clientes}
-                    onChange={(list) => setForm({ ...form, clientes: list })}
-                    invalid={!!formErrors.cliente}
+                <div className="modal-field">
+                  <label htmlFor="new-proveedor">Proveedor</label>
+                  <ProviderSelect
+                    id="new-proveedor"
+                    value={form.proveedor}
+                    providers={providers}
+                    onChange={(name) => setForm({ ...form, proveedor: name })}
                   />
-                  {formErrors.cliente && <span className="field-error">{formErrors.cliente}</span>}
-                  {formErrors.proveedor && <span className="field-error">{formErrors.proveedor}</span>}
                 </div>
                 <div className="modal-field">
                   <label>Fecha de inicio</label>
@@ -595,19 +609,12 @@ export default function ProjectsList() {
                 </div>
                 <div className="modal-field">
                   <label htmlFor="edit-proveedor">Proveedor</label>
-                  <input
+                  <ProviderSelect
                     id="edit-proveedor"
-                    type="text"
-                    list="provider-suggestions"
-                    placeholder="Sin asignar -- escribe o elige un proveedor"
                     value={editForm.proveedor}
-                    onChange={(e) => setEditForm({ ...editForm, proveedor: e.target.value })}
+                    providers={providers}
+                    onChange={(name) => setEditForm({ ...editForm, proveedor: name })}
                   />
-                  <datalist id="provider-suggestions">
-                    {providerSuggestions.map((name) => (
-                      <option key={name} value={name} />
-                    ))}
-                  </datalist>
                 </div>
                 <div className="modal-field">
                   <label>Fecha de inicio</label>

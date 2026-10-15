@@ -4,7 +4,7 @@ import { computeProjectStats } from '../types/domain';
 import type {
   Project, Meeting, AuditLogEntry, ProjectStatus, MeetingState,
   Provider, ProjectPhase, DailyNote, ProfileLite, UserRole, Compromiso,
-  WeeklyProgressEntry, WeeklyProgressOverviewRow, WeeklyProgressDetail,
+  WeeklyProgressEntry, WeeklyProgressOverviewRow, WeeklyProgressDetail, WeeklyReportForm, MilestoneReportStatus,
   PhaseTask, PendingInvite,
 } from '../types/domain';
 
@@ -532,6 +532,27 @@ export const ProvidersApi = {
     const res = await supabase.from('providers').delete().eq('id', id);
     throwIfError(res as any);
   },
+
+  // Proveedor (texto) de cada proyecto, por id -- para filtrar por proveedor
+  // en pantallas que no cargan el proyecto completo (informe semanal).
+  async byProject(): Promise<Record<string, string>> {
+    const res = await supabase.from('projects').select('id, proveedor');
+    const rows = throwIfError<{ id: string; proveedor: string | null }[]>(res as any);
+    return Object.fromEntries(rows.map((r) => [r.id, (r.proveedor ?? '').trim() || 'Sin asignar']));
+  },
+
+  // Cuántos proyectos usan cada proveedor, por nombre en minúsculas (la
+  // mayoría de proyectos guarda el proveedor solo como texto, sin el id).
+  async projectCounts(): Promise<Record<string, number>> {
+    const res = await supabase.from('projects').select('proveedor');
+    const rows = throwIfError<{ proveedor: string | null }[]>(res as any);
+    const counts: Record<string, number> = {};
+    for (const r of rows) {
+      const key = (r.proveedor ?? '').trim().toLowerCase();
+      if (key) counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  },
 };
 
 // Directorio interno de esta app (profiles reales), usado por los pickers de
@@ -665,6 +686,26 @@ export const WeeklyProgressApi = {
     throwIfError(res as any);
   },
 
+  // Formulario por hitos de la semana en curso: hitos que vencen, atrasados,
+  // próximos y lo ya reportado (si se está corrigiendo).
+  async getReportForm(projectId: string): Promise<WeeklyReportForm> {
+    const res = await supabase.rpc('get_weekly_report_form', { p_project_id: projectId });
+    return throwIfError<WeeklyReportForm>(res as any);
+  },
+
+  // Envía el reporte por hitos. "cumplido" crea el seguimiento para QA; el %
+  // de la semana lo calcula el servidor.
+  async submitReport(
+    projectId: string,
+    note: string,
+    items: { itemId: string; status: MilestoneReportStatus; note: string }[],
+  ): Promise<void> {
+    const res = await supabase.rpc('submit_weekly_report', {
+      p_project_id: projectId, p_note: note, p_items: items,
+    });
+    throwIfError(res as any);
+  },
+
   async getIndicator(projectId: string): Promise<number> {
     const res = await supabase.rpc('get_weekly_indicator', { p_project_id: projectId });
     return Number(throwIfError<number>(res as any));
@@ -686,12 +727,19 @@ export const WeeklyProgressApi = {
       project_id: string; code: string; name: string; status: ProjectStatus;
       responsable_nombre: string | null; indicator: number;
       current_week_start: string; current_week_submitted: boolean; current_week_deadline: string;
+      week_milestones_total: number; week_milestones_done: number; overdue_count: number;
+      undated_count: number; next_due_date: string | null; next_due_code: string | null;
     }[]>(res as any);
     return rows.map((r) => ({
       projectId: r.project_id, code: r.code, name: r.name, status: r.status,
       responsableNombre: r.responsable_nombre, indicator: Number(r.indicator),
       currentWeekStart: r.current_week_start, currentWeekSubmitted: r.current_week_submitted,
       currentWeekDeadline: r.current_week_deadline,
+      weekMilestonesTotal: Number(r.week_milestones_total ?? 0),
+      weekMilestonesDone: Number(r.week_milestones_done ?? 0),
+      overdueCount: Number(r.overdue_count ?? 0),
+      undatedCount: Number(r.undated_count ?? 0),
+      nextDueDate: r.next_due_date, nextDueCode: r.next_due_code,
     }));
   },
 };
