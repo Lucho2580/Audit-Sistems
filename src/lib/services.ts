@@ -709,11 +709,6 @@ export const PhasesApi = {
     });
     throwIfError(res as any);
   },
-
-  async setPercent(phaseId: string, percent: number) {
-    const res = await supabase.rpc('set_phase_percent', { p_phase_id: phaseId, p_percent: percent });
-    throwIfError(res as any);
-  },
 };
 
 const PHASE_TASK_SELECT =

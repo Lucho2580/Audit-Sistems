@@ -321,6 +321,30 @@ export function computeProjectStats(project: Pick<Project, 'sections'>): Stats {
   return computeItemStats(allItems);
 }
 
+// Avance de cada sección del proyecto (Ficha técnica, Flujo de procesos...),
+// con el mismo criterio que computeProjectStats -- promedio del % de sus
+// checkpoints, que a su vez sale de los reportes aprobados por QA -- para
+// que el desglose y el "avance real" del proyecto nunca muestren cifras
+// que no cuadran entre sí.
+export interface SectionProgress {
+  id: string;
+  code: string;
+  title: string;
+  pct: number;
+  total: number;
+  done: number;
+}
+
+export function computeSectionProgress(sections: Section[]): SectionProgress[] {
+  return sections
+    .slice()
+    .sort((a, b) => a.orderIndex - b.orderIndex)
+    .map((s) => {
+      const st = computeItemStats(s.items);
+      return { id: s.id, code: s.code, title: s.title, pct: st.pct, total: st.total, done: st.done };
+    });
+}
+
 // ---- Informe semanal de avance ---------------------------------------------
 
 export interface WeeklyProgressEntry {

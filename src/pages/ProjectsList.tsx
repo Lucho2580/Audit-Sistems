@@ -9,7 +9,7 @@ import { useSidebarStats, useDashboardToggle } from '../context/ShellChromeConte
 import { ProjectsApi, ProvidersApi } from '../lib/services';
 import { exportProjectsCsv, downloadCsvTemplate } from '../lib/csv';
 import {
-  STATUS_META, DELAY_STATUS_META, taskDelayStatus, taskExpectedPct,
+  STATUS_META, DELAY_STATUS_META, taskDelayStatus, taskExpectedPct, computeSectionProgress,
   type Project, type ProjectStatus, type ProfileLite, type DelayStatus,
 } from '../types/domain';
 import { useAuth } from '../context/AuthContext';
@@ -624,7 +624,7 @@ export default function ProjectsList() {
                 </select>
                 <span
                   className="proj-progress-compare"
-                  title="Avance real / avance esperado según el plazo -- clic para ver el desglose por fase"
+                  title="Avance real / avance esperado según el plazo -- clic para ver el desglose por sección"
                   onClick={() => togglePhasesRow(p.id)}
                   style={{ cursor: 'pointer' }}
                 >
@@ -656,16 +656,19 @@ export default function ProjectsList() {
               </div>
               {expandedPhases.has(p.id) && (
                 <div className="proj-phases-breakdown" onClick={(e) => e.stopPropagation()}>
-                  {p.phases.length === 0 ? (
-                    <span className="admin-hint" style={{ padding: 0 }}>Sin fases configuradas todavía.</span>
+                  {p.sections.length === 0 ? (
+                    <span className="admin-hint" style={{ padding: 0 }}>Este proyecto no tiene secciones todavía.</span>
                   ) : (
-                    p.phases.map((phase) => (
-                      <div className="bar-row" key={phase.key}>
-                        <span className="bar-label" title={phase.label}>{phase.label}</span>
-                        <span className="bar-track2">
-                          <span className="bar-fill2" style={{ width: `${phase.percent}%` }} />
+                    computeSectionProgress(p.sections).map((row) => (
+                      <div className="bar-row" key={row.id}>
+                        <span className="bar-label" title={row.title}>
+                          <span className="section-progress-code">{row.code}</span>
+                          {row.title}
                         </span>
-                        <span className="bar-value">{phase.percent}%</span>
+                        <span className="bar-track2">
+                          <span className="bar-fill2" style={{ width: `${row.pct}%` }} />
+                        </span>
+                        <span className="bar-value">{row.pct}%</span>
                       </div>
                     ))
                   )}

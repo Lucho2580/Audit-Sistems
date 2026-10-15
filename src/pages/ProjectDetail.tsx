@@ -8,7 +8,7 @@ import AuditHistoryPanel from '../components/AuditHistoryPanel';
 import RoadmapPhases from '../components/RoadmapPhases';
 import DeliveryPanel from '../components/DeliveryPanel';
 import ParticipationChart from '../components/ParticipationChart';
-import PhaseProgressChart from '../components/PhaseProgressChart';
+import SectionProgressChart from '../components/SectionProgressChart';
 import ProjectCalendar from '../components/ProjectCalendar';
 import { ProjectsApi, MeetingsApi, PhasesApi, PhaseTasksApi, DailyNotesApi } from '../lib/services';
 import { generateProjectReportPdf } from '../lib/pdf';
@@ -170,7 +170,7 @@ export default function ProjectDetail() {
 
       <div className="dashboard-grid">
         <ParticipationChart tasks={tasks} />
-        <PhaseProgressChart phases={phases} canEdit={canEdit || isQaReviewer} onChanged={load} />
+        <SectionProgressChart sections={project.sections} />
       </div>
 
       {project.sections
