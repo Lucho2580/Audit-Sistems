@@ -699,7 +699,10 @@ export default function ProjectsList() {
                   </div>
                   <div className="pcard-bar" aria-hidden="true">
                     <span className="pcard-bar-track" />
-                    <span className="pcard-bar-fill" style={{ width: `${p.stats?.pct ?? 0}%` }} />
+                    <span
+                      className={`pcard-bar-fill${(p.stats?.pct ?? 0) >= 100 ? ' is-complete' : ''}`}
+                      style={{ width: `${p.stats?.pct ?? 0}%` }}
+                    />
                     {schedule && <span className="pcard-bar-marker" style={{ left: `${schedule.expectedPct}%` }} />}
                   </div>
                   <button
@@ -763,7 +766,7 @@ export default function ProjectsList() {
                             </span>
                             <span className="pcard-section-pct">{row.pct}%</span>
                           </div>
-                          <span className="pcard-section-bar"><span style={{ width: `${row.pct}%` }} /></span>
+                          <span className="pcard-section-bar"><span className={row.pct >= 100 ? 'is-complete' : undefined} style={{ width: `${row.pct}%` }} /></span>
                           <span className="pcard-section-count">{row.done} de {row.total} checkpoints completos</span>
                         </div>
                       ))}

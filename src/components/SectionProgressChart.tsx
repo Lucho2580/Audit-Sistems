@@ -27,7 +27,7 @@ export default function SectionProgressChart({ sections }: Props) {
                   {row.title}
                 </span>
                 <span className="bar-track2">
-                  <span className="bar-fill2" style={{ width: `${row.pct}%` }} />
+                  <span className={`bar-fill2${row.pct >= 100 ? ' is-complete' : ''}`} style={{ width: `${row.pct}%` }} />
                 </span>
                 <span className="bar-value" title={`${row.done} de ${row.total} checkpoints completos`}>
                   {row.pct}%
